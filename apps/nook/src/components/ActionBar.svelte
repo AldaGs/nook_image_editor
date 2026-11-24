@@ -12,7 +12,15 @@
   const hasGroup = $derived(selected.some(n => n.type === 'group'));
 </script>
 
-{#if selected.length}
+{#if ui.state.tool === 'pen'}
+  <!-- While drawing a path: finish it open or closed, or take back the last point. -->
+  <div class="bar" role="toolbar" aria-label="Pen">
+    <span class="count">{ui.state.penPoints ? `${ui.state.penPoints} point${ui.state.penPoints === 1 ? '' : 's'}` : 'Tap to add points'}</span>
+    <IconButton icon="undo" label="Undo point" disabled={!ui.state.penPoints} onclick={() => editor.undo()} />
+    <button type="button" class="text" disabled={ui.state.penPoints < 3} onclick={() => { editor.finishPen(true); editor.setTool('select'); }}>Close</button>
+    <button type="button" class="text" onclick={() => { editor.finishPen(); editor.setTool('select'); }}>Done</button>
+  </div>
+{:else if selected.length}
   <div class="bar" role="toolbar" aria-label="Selection">
     <span class="count">{one ? one.name : `${selected.length} selected`}</span>
     <IconButton icon="sliders" label="Design" onclick={onDesign} />
@@ -43,6 +51,8 @@
     border-radius: calc(var(--radius) + 4px);
     box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
   }
+  .text { min-height: 40px; padding: 0 12px; background: none; border: none; border-radius: var(--radius); font-weight: 600; color: var(--accent, inherit); }
+  .text:disabled { opacity: 0.4; }
   .count {
     max-width: 30vw;
     overflow: hidden;

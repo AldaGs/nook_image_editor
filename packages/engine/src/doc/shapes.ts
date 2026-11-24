@@ -29,13 +29,63 @@ export function shapePath(n: Node): VectorPath | null {
     }
     case 'line':
       return { anchors: [corner(0, 0), corner(n.width, 0)], closed: false };
+    case 'vector':
+      return n.path ?? null;
     default:
       return null;
   }
 }
 
-/** Straight-line approximation of a path (curves by their end points; ponytail: flatten Béziers when vectors get curves). */
-const points = (path: VectorPath): Point[] => path.anchors.map(a => a.p);
+/** The cubic segments, in order: [p0, c1, c2, p3]. A closed path includes the one back to the start. */
+export function segments(path: VectorPath): [Point, Point, Point, Point][] {
+  const a = path.anchors, out: [Point, Point, Point, Point][] = [];
+  const n = path.closed ? a.length : a.length - 1;
+  for (let i = 0; i < n; i++) {
+    const s = a[i]!, e = a[(i + 1) % a.length]!;
+    out.push([s.p, { x: s.p.x + s.out.x, y: s.p.y + s.out.y }, { x: e.p.x + e.in.x, y: e.p.y + e.in.y }, e.p]);
+  }
+  return out;
+}
+
+export function bezierAt([p0, c1, c2, p3]: [Point, Point, Point, Point], t: number): Point {
+  const u = 1 - t, a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+  return { x: a * p0.x + b * c1.x + c * c2.x + d * p3.x, y: a * p0.y + b * c1.y + c * c2.y + d * p3.y };
+}
+
+const isLine = ([p0, c1, c2, p3]: [Point, Point, Point, Point]) => c1.x === p0.x && c1.y === p0.y && c2.x === p3.x && c2.y === p3.y;
+
+/** The path as a polyline: straight segments as they are, curves in 24 steps. */
+export function flatten(path: VectorPath): Point[] {
+  const segs = segments(path);
+  if (!segs.length) return path.anchors.map(a => a.p);
+  const out: Point[] = [segs[0]![0]];
+  for (const s of segs) {
+    if (isLine(s)) out.push(s[3]);
+    else for (let i = 1; i <= 24; i++) out.push(bezierAt(s, i / 24));
+  }
+  return out;
+}
+
+const points = (path: VectorPath): Point[] => flatten(path);
+
+/** Bounds of the drawn curve (not its handles). */
+export function pathBounds(path: VectorPath): { x: number; y: number; width: number; height: number } {
+  const pts = flatten(path);
+  if (!pts.length) return { x: 0, y: 0, width: 0, height: 0 };
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  const x = Math.min(...xs), y = Math.min(...ys);
+  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
+}
+
+/** Move a path by (dx, dy). */
+export const shiftPath = (path: VectorPath, dx: number, dy: number): VectorPath =>
+  ({ ...path, anchors: path.anchors.map(a => ({ ...a, p: { x: a.p.x + dx, y: a.p.y + dy } })) });
+
+/** Scale a path (points and handles) about its origin. */
+export const scalePath = (path: VectorPath, sx: number, sy: number): VectorPath => ({
+  ...path,
+  anchors: path.anchors.map(a => ({ p: { x: a.p.x * sx, y: a.p.y * sy }, in: { x: a.in.x * sx, y: a.in.y * sy }, out: { x: a.out.x * sx, y: a.out.y * sy } })),
+});
 
 /** Is a local point inside a closed path (even-odd), or within `slop` of an open one? */
 export function pathContains(path: VectorPath, q: Point, slop: number): boolean {
@@ -48,8 +98,7 @@ export function pathContains(path: VectorPath, q: Point, slop: number): boolean 
     }
     if (inside) return true;
   }
-  const segs = path.closed ? pts.length : pts.length - 1;
-  for (let i = 0; i < segs; i++) if (distToSegment(q, pts[i]!, pts[(i + 1) % pts.length]!) <= slop) return true;
+  for (let i = 0; i + 1 < pts.length; i++) if (distToSegment(q, pts[i]!, pts[i + 1]!) <= slop) return true;
   return false;
 }
 

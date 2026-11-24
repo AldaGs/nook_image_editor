@@ -29,8 +29,9 @@ export function createNode(type: NodeType, props: Partial<Node> & { parentId: st
   };
   if (type === 'rect' || type === 'frame') base.cornerRadius ??= 0;
   if (type === 'polygon') base.pointCount ??= 3;
+  if (type === 'vector') base.path ??= { anchors: [], closed: false };
   if (type === 'star') { base.pointCount ??= 5; base.innerRatio ??= 0.4; }
-  if (type === 'line') {
+  if (type === 'line' || type === 'vector') {
     if (!props.fills) base.fills = [];
     if (!props.strokes) base.strokes = [{ paint: solid({ r: 0, g: 0, b: 0, a: 1 }), width: 4, align: 'center' }];
   }

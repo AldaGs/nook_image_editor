@@ -121,6 +121,7 @@ export class Renderer {
       c.scale(this.dpr, this.dpr);
       this.drawOverlay(c, camera, editor);
       c.restore();
+      if (editor.pen.loupe) this.drawLoupe(surface, c, editor.pen.loupe);
     }
     surface.flush();
   }
@@ -244,8 +245,10 @@ export class Renderer {
         break;
       case 'polygon':
       case 'star':
-      case 'line': {
-        const path = shapePath(n)!;
+      case 'line':
+      case 'vector': {
+        const path = shapePath(n);
+        if (!path?.anchors.length) { b.delete(); return null; }
         path.anchors.forEach((a, i) => {
           if (!i) { b.moveTo(a.p.x, a.p.y); return; }
           const prev = path.anchors[i - 1]!;
@@ -640,6 +643,86 @@ export class Renderer {
 
   // ── Overlay (screen space) ───────────────────────────────────
 
+  /**
+   * A path's points (white squares) and handles (lines to small dots) on screen.
+   * While drawing, the first point gets a large ring: the target that closes the path.
+   */
+  private drawAnchors(c: Canvas, camera: Camera, editor: Editor, n: Node, drawing: boolean): void {
+    const m = editor.doc.worldTransform(n.id);
+    const scr = (q: Point) => camera.worldToScreen(apply(m, q));
+    const anchors = n.path!.anchors;
+    const accent = this.color(this.theme.accent);
+    this.line.setColor(accent);
+    this.line.setStrokeWidth(1.5);
+    // The outline itself, so a stroke-less path is still visible.
+    const outline = this.outline(n);
+    if (outline) {
+      c.save();
+      c.scale(camera.zoom, camera.zoom);
+      c.translate(-camera.x, -camera.y);
+      c.concat(this.matrix(m));
+      this.line.setStrokeWidth(1.5 / camera.zoom);
+      c.drawPath(outline, this.line);
+      c.restore();
+      this.line.setStrokeWidth(1.5);
+      outline.delete();
+    }
+    anchors.forEach(a => {
+      const p = scr(a.p);
+      for (const t of [a.in, a.out]) {
+        if (!t.x && !t.y) continue;
+        const h = scr({ x: a.p.x + t.x, y: a.p.y + t.y });
+        c.drawLine(p.x, p.y, h.x, h.y, this.line);
+        this.fill.setColor(accent);
+        c.drawCircle(h.x, h.y, 4, this.fill);
+      }
+    });
+    anchors.forEach((a, i) => {
+      const p = scr(a.p);
+      const r = this.ck.XYWHRect(p.x - 5, p.y - 5, 10, 10);
+      this.fill.setColor(i === anchors.length - 1 && drawing ? accent : this.ck.WHITE);
+      c.drawRect(r, this.fill);
+      c.drawRect(r, this.line);
+    });
+    if (drawing && anchors.length >= 2 && !n.path!.closed) {
+      const p = scr(anchors[0]!.p);
+      this.line.setStrokeWidth(2.5);
+      c.drawCircle(p.x, p.y, 16, this.line);
+      this.line.setStrokeWidth(1.5);
+    }
+  }
+
+  /** A circle above the finger showing what's under it at 2×, with a crosshair on the exact point. */
+  private drawLoupe(surface: Surface, c: Canvas, at: Point): void {
+    const d = this.dpr, r = 48, zoom = 2;
+    const src = r / zoom;
+    const img = surface.makeImageSnapshot([Math.round((at.x - src) * d), Math.round((at.y - src) * d), Math.round((at.x + src) * d), Math.round((at.y + src) * d)]);
+    // Above the finger; below it when that would leave the screen.
+    const cy = at.y - r - 64 < 0 ? at.y + r + 64 : at.y - r - 64;
+    c.save();
+    c.scale(d, d);
+    const clip = new this.ck.PathBuilder().addCircle(at.x, cy, r).detachAndDelete();
+    c.save();
+    c.clipPath(clip, this.ck.ClipOp.Intersect, true);
+    this.fill.setColor(this.color(this.theme.background));
+    c.drawCircle(at.x, cy, r, this.fill);
+    c.drawImageRect(img, this.ck.XYWHRect(0, 0, img.width(), img.height()), this.ck.XYWHRect(at.x - r, cy - r, r * 2, r * 2), this.fill);
+    c.restore();
+    this.line.setColor(this.color(this.theme.accent));
+    this.line.setStrokeWidth(1);
+    c.drawLine(at.x - 8, cy, at.x + 8, cy, this.line);
+    c.drawLine(at.x, cy - 8, at.x, cy + 8, this.line);
+    this.line.setColor(this.ck.WHITE);
+    this.line.setStrokeWidth(3);
+    c.drawCircle(at.x, cy, r, this.line);
+    this.line.setColor(this.color(this.theme.accent));
+    this.line.setStrokeWidth(1.5);
+    c.drawCircle(at.x, cy, r, this.line);
+    c.restore();
+    clip.delete();
+    img.delete();
+  }
+
   private drawOverlay(c: Canvas, camera: Camera, editor: Editor): void {
     // Safe zones first, under the selection: shaded strips on story-shaped boards.
     if (editor.safeZones) {
@@ -748,6 +831,9 @@ export class Renderer {
       this.line.setColor(accent);
       this.line.setStrokeWidth(1.5);
     }
+
+    const pn = editor.tool === 'pen' ? editor.penNode() : null;
+    if (pn?.path) this.drawAnchors(c, camera, editor, pn, true);
 
     if (editor.marquee) {
       const r = this.screenRect(camera, editor.marquee);

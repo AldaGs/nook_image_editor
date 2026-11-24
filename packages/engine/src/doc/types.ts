@@ -2,6 +2,7 @@
 // each node points at its parent and sorts among siblings by a fractional index.
 
 import type { Affine } from '../geom/affine.ts';
+import type { VectorPath } from './shapes.ts';
 
 export type NodeType =
   | 'page' | 'frame' | 'group' | 'rect' | 'ellipse'
@@ -106,6 +107,7 @@ export interface Node {
   cornerRadius?: number;  // rect and frame
   pointCount?: number;    // polygon sides, star points
   innerRatio?: number;    // star: inner radius / outer, 0–1
+  path?: VectorPath;      // vector: in the node's own space, fitted to its box
   clipContent?: boolean;  // frame
   text?: TextProps;       // text
   motion?: MotionHints;   // PBC/AE export hints (stage 4)

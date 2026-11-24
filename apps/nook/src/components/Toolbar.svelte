@@ -18,6 +18,7 @@
     { id: 'polygon', icon: 'pentagon', label: 'Polygon' },
     { id: 'star', icon: 'star', label: 'Star' },
     { id: 'line', icon: 'slash', label: 'Line (L)' },
+    { id: 'pen', icon: 'penTool', label: 'Pen (P)' },
     { id: 'text', icon: 'type', label: 'Text (T)' },
   ];
 </script>

@@ -6,6 +6,7 @@ import { Doc } from '../doc/document.ts';
 import { History } from '../doc/history.ts';
 import { keyBetween, keysAfter } from '../doc/fractional.ts';
 import { createNode } from '../doc/factory.ts';
+import { pathBounds, scalePath, shiftPath, type VectorPath } from '../doc/shapes.ts';
 import { starterDoc } from '../doc/serialize.ts';
 import type { Op } from '../doc/ops.ts';
 import { isGradient, type GradientPaint, type ImagePaint, type Node, type NodeProp, type TextProps } from '../doc/types.ts';
@@ -14,7 +15,7 @@ import { localFor, worldBounds } from './bounds.ts';
 import { frameAt } from './hit.ts';
 import type { Guide } from './snap.ts';
 
-export type ToolId = 'select' | 'rect' | 'ellipse' | 'polygon' | 'star' | 'line' | 'frame' | 'text';
+export type ToolId = 'select' | 'rect' | 'ellipse' | 'polygon' | 'star' | 'line' | 'pen' | 'frame' | 'text';
 
 /** Text layout as the renderer measures it: the box the text needs. */
 export type MeasureText = (text: TextProps, width: number | null) => { width: number; height: number };
@@ -44,6 +45,8 @@ export interface EditorState {
   safeZones: boolean;
   canUndo: boolean;
   canRedo: boolean;
+  /** Points in the path the pen is drawing (0 when none). */
+  penPoints: number;
 }
 
 export class Editor {
@@ -106,6 +109,7 @@ export class Editor {
       safeZones: this.safeZones,
       canUndo: this.history.canUndo,
       canRedo: this.history.canRedo,
+      penPoints: this.penNode()?.path?.anchors.length ?? 0,
     };
   }
 
@@ -131,7 +135,42 @@ export class Editor {
 
   // ── Tool and modes ───────────────────────────────────────────
 
-  setTool(tool: ToolId): void { this.tool = tool; this.emit(); }
+  setTool(tool: ToolId): void {
+    if (this.tool === 'pen' && tool !== 'pen') this.finishPen();
+    this.tool = tool;
+    this.emit();
+  }
+
+  // ── Pen ──────────────────────────────────────────────────────
+
+  /**
+   * The pen's path in progress (a vector node, one undo step per point) and,
+   * while a finger is down, the screen point the loupe magnifies.
+   */
+  pen: { nodeId: string | null; loupe: Point | null } = { nodeId: null, loupe: null };
+
+  penNode(): Node | null {
+    const n = this.pen.nodeId ? this.doc.get(this.pen.nodeId) : undefined;
+    return n?.type === 'vector' ? n : null;
+  }
+
+  /**
+   * End the path: closed (joined back to its first point) or left open. A path
+   * of one point is removed. The finished path is selected and the pen stays
+   * ready for the next one.
+   */
+  finishPen(close = false): void {
+    const n = this.penNode();
+    this.pen = { nodeId: null, loupe: null };
+    if (n?.path) {
+      if (n.path.anchors.length < 2) this.transact('Remove point', () => [{ t: 'remove', id: n.id }]);
+      else {
+        if (close && !n.path.closed) this.transact('Close path', () => this.pathOps(n, { ...n.path!, closed: true }));
+        this.select([n.id]);
+      }
+    }
+    this.emit();
+  }
   setMultiSelect(on: boolean): void { this.multiSelect = on; this.emit(); }
   setSafeZones(on: boolean): void { this.safeZones = on; this.emit(); }
   setSafeZoneOpacity(v: number): void { this.safeZoneOpacity = Math.min(1, Math.max(0, v)); this.emit(); }
@@ -482,13 +521,31 @@ export class Editor {
       // ponytail: a rotated node under a non-uniform stretch would shear; it keeps its own angle and stretches along its own axes (as Figma does).
       const world = multiply(translation(w[4], w[5]), rotation(Math.atan2(w[1], w[0])));
       const r = (v: number) => Math.round(v * 100) / 100;
+      const sx = Math.hypot(w[0], w[1]), sy = Math.hypot(w[2], w[3]);
       return [
+        ...(n.type === 'vector' && n.path ? [{ t: 'set', id: n.id, prop: 'path', value: scalePath(n.path, sx, sy) } as Op] : []),
         ...(n.type === 'text' && n.text && n.text.sizing !== 'fixed' ? [{ t: 'set', id: n.id, prop: 'text', value: { ...n.text, sizing: 'fixed' } } as Op] : []),
         { t: 'set', id: n.id, prop: 'transform', value: localFor(this.doc, world, n.parentId) },
         { t: 'set', id: n.id, prop: 'width', value: r(n.width * Math.hypot(w[0], w[1])) },
         { t: 'set', id: n.id, prop: 'height', value: r(n.height * Math.hypot(w[2], w[3])) },
       ] as Op[];
     });
+  }
+
+  /**
+   * Set a vector's path (in its current local space) and refit its box to the
+   * drawn curve: the path moves to start at 0,0 and the transform moves the
+   * other way, so nothing shifts on screen.
+   */
+  pathOps(n: Node, path: VectorPath): Op[] {
+    const b = pathBounds(path);
+    const r = (v: number) => Math.round(v * 100) / 100;
+    return [
+      { t: 'set', id: n.id, prop: 'path', value: shiftPath(path, -b.x, -b.y) },
+      { t: 'set', id: n.id, prop: 'transform', value: multiply(n.transform, translation(b.x, b.y)) },
+      { t: 'set', id: n.id, prop: 'width', value: r(b.width) },
+      { t: 'set', id: n.id, prop: 'height', value: r(b.height) },
+    ];
   }
 
   /** Translate nodes by a world-space delta (each in its own parent space). */

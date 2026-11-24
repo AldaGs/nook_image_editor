@@ -117,7 +117,8 @@ function toLayer(doc: Doc, n: Node, ctx: Ctx): unknown {
   switch (n.type) {
     case 'polygon':
     case 'star':
-    case 'line': {
+    case 'line':
+    case 'vector': {
       // Path points are in the node's own space, so the layer sits at its origin.
       const path = shapePath(n)!;
       const v = (p: { x: number; y: number }) => k({ x: round(p.x), y: round(p.y) });

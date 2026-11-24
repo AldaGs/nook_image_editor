@@ -12,6 +12,7 @@ import type { RGBA, TextProps } from './doc/types.ts';
 import { worldBounds } from './editor/bounds.ts';
 import { SelectTool } from './editor/tools/select.ts';
 import { ShapeTool } from './editor/tools/shape.ts';
+import { PenTool } from './editor/tools/pen.ts';
 import { TextTool } from './editor/tools/text.ts';
 import type { Tool, ToolContext } from './editor/tools/tool.ts';
 import { apply, invert, type Point, type Rect } from './geom/affine.ts';
@@ -91,6 +92,7 @@ export async function createEngine(canvas: HTMLCanvasElement, opts: EngineOption
     polygon: new ShapeTool(ctx, 'polygon'),
     star: new ShapeTool(ctx, 'star'),
     line: new ShapeTool(ctx, 'line'),
+    pen: new PenTool(ctx),
     frame: new ShapeTool(ctx, 'frame'),
     text: new TextTool(ctx),
   };
