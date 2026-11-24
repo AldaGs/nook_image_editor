@@ -1,7 +1,8 @@
 // Camera: maps world space (the infinite canvas) to screen space (CSS pixels).
 // screen = (world - origin) * zoom. Pure data + math, so it is unit-testable.
 
-export interface Point { x: number; y: number }
+import type { Point } from '../geom/affine.ts';
+export type { Point };
 
 export const MIN_ZOOM = 0.02;
 export const MAX_ZOOM = 256;

@@ -1,0 +1,45 @@
+<!-- Icon: a Lucide icon inlined as SVG, sized by the surrounding font size. -->
+<script lang="ts" module>
+  // Only the icons we use are bundled.
+  import arrowDown from 'lucide-static/icons/arrow-down.svg?raw';
+  import arrowUp from 'lucide-static/icons/arrow-up.svg?raw';
+  import chevronDown from 'lucide-static/icons/chevron-down.svg?raw';
+  import chevronRight from 'lucide-static/icons/chevron-right.svg?raw';
+  import circle from 'lucide-static/icons/circle.svg?raw';
+  import eye from 'lucide-static/icons/eye.svg?raw';
+  import eyeOff from 'lucide-static/icons/eye-off.svg?raw';
+  import frame from 'lucide-static/icons/frame.svg?raw';
+  import group from 'lucide-static/icons/group.svg?raw';
+  import layers from 'lucide-static/icons/layers.svg?raw';
+  import layoutTemplate from 'lucide-static/icons/layout-template.svg?raw';
+  import listChecks from 'lucide-static/icons/list-checks.svg?raw';
+  import lock from 'lucide-static/icons/lock.svg?raw';
+  import lockOpen from 'lucide-static/icons/lock-open.svg?raw';
+  import maximize from 'lucide-static/icons/maximize.svg?raw';
+  import pointer from 'lucide-static/icons/mouse-pointer-2.svg?raw';
+  import redo from 'lucide-static/icons/redo-2.svg?raw';
+  import share from 'lucide-static/icons/share.svg?raw';
+  import square from 'lucide-static/icons/square.svg?raw';
+  import trash from 'lucide-static/icons/trash-2.svg?raw';
+  import undo from 'lucide-static/icons/undo-2.svg?raw';
+  import ungroup from 'lucide-static/icons/ungroup.svg?raw';
+  import x from 'lucide-static/icons/x.svg?raw';
+
+  const ICONS = {
+    arrowDown, arrowUp, chevronDown, chevronRight, circle, eye, eyeOff, frame, group, layers,
+    layoutTemplate, listChecks, lock, lockOpen, maximize, pointer, redo, share, square, trash,
+    undo, ungroup, x,
+  };
+  export type IconName = keyof typeof ICONS;
+</script>
+
+<script lang="ts">
+  let { name }: { name: IconName } = $props();
+</script>
+
+<span class="icon" aria-hidden="true">{@html ICONS[name]}</span>
+
+<style>
+  .icon { display: inline-flex; width: 1.25em; height: 1.25em; }
+  .icon :global(svg) { width: 100%; height: 100%; }
+</style>

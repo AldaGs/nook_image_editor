@@ -1,63 +1,91 @@
-// Engine entry point: wires CanvasKit, camera, gestures, renderer and frame loop
-// to one <canvas>. The UI talks to the engine only through this handle.
+// Engine entry point: wires CanvasKit, camera, input, tools, renderer and the
+// frame loop to one <canvas>, around an Editor. The UI talks to the engine only
+// through this handle and the Editor.
 
 import { Camera } from './camera/camera.ts';
-import { attachGestures } from './input/gestures.ts';
+import { attachInput } from './input/router.ts';
 import { loadCanvasKit } from './render/canvaskit.ts';
 import { FrameLoop } from './render/frameloop.ts';
 import { Renderer, type RendererTheme } from './render/renderer.ts';
-import type { RectNode } from './doc/types.ts';
+import type { Editor, ToolId } from './editor/editor.ts';
+import { worldBounds } from './editor/bounds.ts';
+import { SelectTool } from './editor/tools/select.ts';
+import { ShapeTool } from './editor/tools/shape.ts';
+import type { Tool, ToolContext } from './editor/tools/tool.ts';
+import type { Point } from './geom/affine.ts';
 
 export interface EngineOptions {
   wasmUrl: string;
   theme: RendererTheme;
+  editor: Editor;
   onFps?: (fps: number) => void;
+  /** Called after every redraw that moved the camera or changed the document. */
+  onView?: () => void;
 }
+
+export interface FrameLabel { id: string; name: string; screen: Point; selected: boolean }
 
 export interface Engine {
   camera: Camera;
-  setNodes(nodes: RectNode[]): void;
-  /** Fit all nodes in view. */
-  zoomToFit(): void;
+  /** Fit the given nodes (default: everything on the page) in view. */
+  zoomToFit(ids?: string[]): void;
+  /** Screen positions of top-level frame names, for the UI to draw as labels. */
+  frameLabels(): FrameLabel[];
   setTheme(theme: RendererTheme): void;
+  invalidate(): void;
   destroy(): void;
 }
 
 export async function createEngine(canvas: HTMLCanvasElement, opts: EngineOptions): Promise<Engine> {
   const ck = await loadCanvasKit(opts.wasmUrl);
+  const { editor } = opts;
   const camera = new Camera();
   const renderer = new Renderer(ck, canvas, opts.theme);
-  let nodes: RectNode[] = [];
 
-  const loop = new FrameLoop(() => renderer.render(camera, nodes), opts.onFps ?? (() => {}));
-  const detachGestures = attachGestures(canvas, camera, () => loop.invalidate());
+  const loop = new FrameLoop(() => { renderer.render(camera, editor); opts.onView?.(); }, opts.onFps ?? (() => {}));
+  const ctx: ToolContext = { editor, camera, invalidate: () => loop.invalidate() };
+  const tools: Record<ToolId, Tool> = {
+    select: new SelectTool(ctx),
+    rect: new ShapeTool(ctx, 'rect'),
+    ellipse: new ShapeTool(ctx, 'ellipse'),
+    frame: new ShapeTool(ctx, 'frame'),
+  };
+
+  const detachInput = attachInput(canvas, camera, () => tools[editor.tool], () => loop.invalidate());
+  const unsubscribe = editor.subscribe(() => loop.invalidate());
 
   // Keep the surface sized to the element (rotation, keyboard, split view).
-  const resize = new ResizeObserver(() => {
-    renderer.resize();
-    loop.invalidate();
-  });
+  const resize = new ResizeObserver(() => { renderer.resize(); loop.invalidate(); });
   resize.observe(canvas);
   renderer.resize();
   loop.start();
 
-  const zoomToFit = () => {
-    if (!nodes.length) return;
-    const x0 = Math.min(...nodes.map(n => n.x)), y0 = Math.min(...nodes.map(n => n.y));
-    const x1 = Math.max(...nodes.map(n => n.x + n.width)), y1 = Math.max(...nodes.map(n => n.y + n.height));
-    camera.fit({ x: x0, y: y0, width: x1 - x0, height: y1 - y0 }, { width: canvas.clientWidth, height: canvas.clientHeight });
-    loop.invalidate();
-  };
-
   return {
     camera,
-    setNodes(next) { nodes = next; loop.invalidate(); },
-    zoomToFit,
+    zoomToFit(ids) {
+      const nodes = ids?.length
+        ? ids.map(id => editor.doc.get(id)!).filter(Boolean)
+        : editor.doc.children(editor.pageId);
+      const b = worldBounds(editor.doc, nodes);
+      if (!b) return;
+      camera.fit({ ...b, width: Math.max(b.width, 1), height: Math.max(b.height, 1) }, { width: canvas.clientWidth, height: canvas.clientHeight });
+      loop.invalidate();
+    },
+    frameLabels() {
+      return editor.doc.children(editor.pageId)
+        .filter(n => n.type === 'frame' && n.visible)
+        .map(n => {
+          const b = worldBounds(editor.doc, [n])!;
+          return { id: n.id, name: n.name, screen: camera.worldToScreen({ x: b.x, y: b.y }), selected: editor.selection.includes(n.id) };
+        });
+    },
     setTheme(theme) { renderer.theme = theme; loop.invalidate(); },
+    invalidate: () => loop.invalidate(),
     destroy() {
       loop.stop();
       resize.disconnect();
-      detachGestures();
+      detachInput();
+      unsubscribe();
       renderer.destroy();
     },
   };

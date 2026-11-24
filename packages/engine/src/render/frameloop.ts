@@ -7,7 +7,13 @@ export class FrameLoop {
   private frames = 0;
   private windowStart = 0;
 
-  constructor(private draw: () => void, private onFps: (fps: number) => void) {}
+  private draw: () => void;
+  private onFps: (fps: number) => void;
+
+  constructor(draw: () => void, onFps: (fps: number) => void) {
+    this.draw = draw;
+    this.onFps = onFps;
+  }
 
   start(): void {
     const tick = (t: number) => {

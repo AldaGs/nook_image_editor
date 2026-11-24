@@ -35,10 +35,17 @@ pnpm build      # production PWA build in apps/nook/dist
 
 **Code map**
 
-- `apps/nook/src/components/`: one Svelte component per file (`Canvas`, `TopBar`, `StatusBar`).
-- `apps/nook/src/lib/`: app-side state and helpers (theme, the stage 0 demo scene).
-- `packages/engine/src/`: `camera/` (view math), `input/` (touch, wheel and trackpad gestures), `render/` (CanvasKit loader, renderer, frame loop), `doc/` (document types), `engine.ts` (wires them to one canvas).
+- `apps/nook/src/components/`: one Svelte component per file. `Canvas` hosts the engine; `TopBar`, `Toolbar` and `ActionBar` are the phone controls; `LayersPanel`/`LayerRow`, `PresetSheet`/`Sheet`, `FrameLabels`, `ViewInfo`, `Icon`/`IconButton`.
+- `apps/nook/src/lib/`: `session` (the editor, its reactive state and autosave), `shortcuts`, `files` (share sheet or download), `theme`.
+- `packages/engine/src/`:
+  - `doc/`: node types, fractional order keys, the document store, ops, undo history, factories and `doc.json`.
+  - `editor/`: the `Editor` (selection and edits), hit-testing, bounds, handles, and `tools/` (select, shape).
+  - `geom/`: affine matrix maths. `camera/`: view maths. `input/`: routes fingers, pen, mouse and wheel.
+  - `render/`: CanvasKit loader, renderer, frame loop. `engine.ts` wires them to one canvas.
+- `packages/scene-export`: Nook → `.pbc` (PBC project JSON).
 - `packages/ai`, `packages/storage`, `packages/tokens`: the AI switch and model loader, OPFS helpers, design tokens.
+
+**Status:** Stage 0 and Stage 1 are built. Not yet in Stage 1: snapping, resizing groups or multi-selections (move and rotate only), dragging layers into or out of frames, cached drawing (SkPicture), and checking the `.pbc` export against PBC's own loader.
 
 ## MVP scope
 

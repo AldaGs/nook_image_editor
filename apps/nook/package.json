@@ -11,9 +11,11 @@
   "dependencies": {
     "@nook/ai": "workspace:*",
     "@nook/engine": "workspace:*",
+    "@nook/scene-export": "workspace:*",
     "@nook/storage": "workspace:*",
     "@nook/tokens": "workspace:*",
-    "canvaskit-wasm": "0.42.0"
+    "canvaskit-wasm": "0.42.0",
+    "lucide-static": "^0.460.0"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.2",
