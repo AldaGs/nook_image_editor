@@ -45,7 +45,7 @@ pnpm build      # production PWA build in apps/nook/dist
 - `packages/scene-export`: Nook → `.pbc` (PBC project JSON), with a report of anything PBC can't show.
 - `packages/ai`, `packages/storage`, `packages/tokens`: the AI switch and model loader, OPFS helpers, design tokens.
 
-**Status:** see the ✅ and 🚧 marks in [MVP stages](#mvp-stages).
+**Status:** see the ✅ and 🚧 marks in [MVP stages](#mvp-stages). What PBC can't show yet is in [PBC-GAPS.md](PBC-GAPS.md).
 
 ## MVP scope
 
@@ -178,8 +178,7 @@ There are seven stages, and each one ships a deployable build. Every "done when"
    - Built: the Design sheet (layer opacity and blend; stacks of solid, linear and radial fills; strokes inside, centre or outside; drop shadow, inner shadow, layer blur, background blur), on-canvas gradient end points, text layers in six bundled families with auto-width, auto-height and fixed boxes, typing on the canvas through a hidden textarea (iOS keyboard, IME, caret kept above the keyboard), and the `.pbc` export of all of it that PBC can hold.
    - PBC first: gradients needed a format change, so PBC gained an optional `gradient` on layers (`_pbc` commit "Gradient fills"), drawn by its preview and export; older files load unchanged.
    - Checked in PBC: a test board (gradient sky, radial sun with drop shadow, blurred blob, rotated multiply bar, gradient Bebas Neue title, wrapped Montserrat subtitle) passes `motion check` and renders in `motion preview` matching Nook.
-   - Not in PBC yet, so listed in the export report: inner shadow, background blur, more than one fill or stroke, inside/outside strokes, shadow spread, fill blend modes.
-   - Known PBC issue: with a variable font installed (Montserrat here), PBC draws weights 600–900 all as the heaviest cut, so heavier text runs wider there than in Nook.
+   - What PBC can't show yet (and the one PBC bug that matters, variable-font weights) is tracked in [PBC-GAPS.md](PBC-GAPS.md); the export report lists the same items per file.
    - Still to check on a real phone: the styleframe rebuild, and the keyboard and caret behaviour on iPhone Safari.
 4. **Stage 3: Images, social presets and export.** Add image import (photo picker, drag-drop and paste) as image fills, frame presets and safe zones, background removal, PNG/JPG/WebP export at 1x–4x per frame through the Web Share API, and `.nook` save/open.
    - Done when you can make and post a real IG carousel from your phone. **First usable release.**
