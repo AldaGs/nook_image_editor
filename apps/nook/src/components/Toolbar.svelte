@@ -4,6 +4,9 @@
   import IconButton from './IconButton.svelte';
   import type { IconName } from './Icon.svelte';
   import { editor, ui } from '../lib/session.svelte';
+  import { imageFiles, importImages } from '../lib/assets';
+
+  let picker: HTMLInputElement;
 
   let { onAddBoard }: { onAddBoard: () => void } = $props();
 
@@ -20,6 +23,10 @@
   {#each TOOLS as t (t.id)}
     <IconButton icon={t.icon} label={t.label} active={ui.state.tool === t.id} onclick={() => editor.setTool(t.id)} />
   {/each}
+  <IconButton icon="image" label="Add picture" onclick={() => picker.click()} />
+  <!-- The photo picker on phones; a file dialog elsewhere. -->
+  <input bind:this={picker} type="file" accept="image/*" multiple hidden
+    onchange={e => { importImages(imageFiles(e.currentTarget.files)); e.currentTarget.value = ''; }} />
   <span class="sep"></span>
   <IconButton icon="layoutTemplate" label="Add board" onclick={onAddBoard} />
   <IconButton icon="listChecks" label="Multi-select" active={ui.state.multiSelect} onclick={() => editor.setMultiSelect(!ui.state.multiSelect)} />
@@ -28,11 +35,14 @@
 <style>
   nav {
     display: flex;
-    justify-content: center;
-    gap: 4px;
+    /* Centred when it fits; on narrow phones it scrolls instead of clipping the ends. */
+    justify-content: safe center;
+    overflow-x: auto;
+    scrollbar-width: none;
+    gap: 2px;
     padding: 6px calc(var(--space) + env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) calc(var(--space) + env(safe-area-inset-left));
     background: var(--surface);
     border-top: 1px solid var(--border);
   }
-  .sep { width: 1px; margin: 8px 4px; background: var(--border); }
+  .sep { flex: none; width: 1px; margin: 8px 2px; background: var(--border); }
 </style>

@@ -32,7 +32,20 @@ export interface GradientPaint extends PaintBase {
   from: { x: number; y: number };
   to: { x: number; y: number };
 }
-export type Paint = SolidPaint | GradientPaint;
+/**
+ * A picture over the node's box. `fill` covers the box (cropping the picture),
+ * `fit` shows all of it. `assetId` is the content hash of the image file;
+ * width and height are its pixel size, so layout never waits for a decode.
+ */
+export interface ImagePaint extends PaintBase {
+  kind: 'image';
+  assetId: string;
+  width: number;
+  height: number;
+  scaleMode: 'fill' | 'fit';
+}
+export type Paint = SolidPaint | GradientPaint | ImagePaint;
+export const isGradient = (p: Paint): p is GradientPaint => p.kind === 'linear' || p.kind === 'radial';
 
 export interface Stroke { paint: Paint; width: number; align: 'inside' | 'center' | 'outside' }
 
@@ -100,6 +113,7 @@ export function newEffect(kind: Effect['kind']): Effect {
 /** One flat colour standing in for a paint (gradients: their average stop). */
 export function paintColor(p: Paint): RGBA {
   if (p.kind === 'solid') return p.color;
+  if (p.kind === 'image') return { r: 0.5, g: 0.5, b: 0.5, a: 1 };
   const n = p.stops.length || 1;
   const sum = p.stops.reduce((a, s) => ({ r: a.r + s.color.r, g: a.g + s.color.g, b: a.b + s.color.b, a: a.a + s.color.a }), { r: 0, g: 0, b: 0, a: 0 });
   return { r: sum.r / n, g: sum.g / n, b: sum.b / n, a: sum.a / n };

@@ -5,8 +5,8 @@ export { Editor, estimateText, type EditorState, type ToolId, type GradientTarge
 export { Doc } from './doc/document.ts';
 export { FRAME_PRESETS, type FramePreset } from './doc/factory.ts';
 export { toFile, fromFile, starterDoc, type DocFile } from './doc/serialize.ts';
-export type { TextProps, Node, NodeType, RGBA, Paint, SolidPaint, GradientPaint, GradientStop, Stroke, Effect, Shadow, Blur, BlendMode } from './doc/types.ts';
-export { solid, linear, newEffect, paintColor, BLEND_MODES } from './doc/types.ts';
+export type { ImagePaint, TextProps, Node, NodeType, RGBA, Paint, SolidPaint, GradientPaint, GradientStop, Stroke, Effect, Shadow, Blur, BlendMode } from './doc/types.ts';
+export { solid, linear, newEffect, paintColor, isGradient, BLEND_MODES } from './doc/types.ts';
 export type { RendererTheme } from './render/renderer.ts';
 export * as affine from './geom/affine.ts';
 export type { Affine, Point, Rect } from './geom/affine.ts';

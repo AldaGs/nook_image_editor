@@ -7,13 +7,15 @@
   export function swatch(p: Paint): string {
     const css = (c: RGBA) => `rgb(${c.r * 255} ${c.g * 255} ${c.b * 255} / ${c.a})`;
     if (p.kind === 'solid') return css(p.color);
+    if (p.kind === 'image') return 'var(--border)';
     const stops = p.stops.map(s => `${css(s.color)} ${s.offset * 100}%`).join(', ');
     return p.kind === 'linear' ? `linear-gradient(90deg, ${stops})` : `radial-gradient(${stops})`;
   }
 </script>
 
 <script lang="ts">
-  import { linear, solid } from '@nook/engine';
+  import { isGradient, linear, solid } from '@nook/engine';
+  import { loadAsset } from '../lib/assets';
   import ColorPicker from './ColorPicker.svelte';
   import IconButton from './IconButton.svelte';
   import Swatch from './Swatch.svelte';
@@ -29,13 +31,24 @@
     oneditgradient?: () => void;
   } = $props();
 
-  function setKind(kind: Paint['kind']) {
+  // A thumbnail for picture paints, from the stored file.
+  let thumb = $state<string | null>(null);
+  $effect(() => {
+    if (paint.kind !== 'image') return;
+    let url: string | null = null, live = true;
+    loadAsset(paint.assetId).then(b => { if (live && b) thumb = url = URL.createObjectURL(new Blob([b])); });
+    return () => { live = false; if (url) URL.revokeObjectURL(url); };
+  });
+
+  /** Solid ↔ linear ↔ radial (pictures only come in through Add picture, drop or paste). */
+  function setKind(kind: 'solid' | 'linear' | 'radial') {
     const base = { opacity: paint.opacity, blendMode: paint.blendMode, visible: paint.visible };
+    const from = paint.kind === 'solid' ? paint.color : paint.kind === 'image' ? { r: 0.85, g: 0.85, b: 0.87, a: 1 } : paint.stops[0]!.color;
     if (kind === 'solid') {
-      onchange({ ...solid(paint.kind === 'solid' ? paint.color : paint.stops[0]!.color), ...base }, true);
-    } else if (paint.kind === 'solid') {
+      onchange({ ...solid(from), ...base }, true);
+    } else if (!isGradient(paint)) {
       // Colour fading to transparent, top to bottom (radial: centre outward).
-      const g = { ...linear(paint.color, { ...paint.color, a: 0 }), ...base, kind };
+      const g = { ...linear(from, { ...from, a: 0 }), ...base, kind };
       if (kind === 'radial') Object.assign(g, { from: { x: 0.5, y: 0.5 }, to: { x: 1, y: 0.5 } });
       onchange(g, true);
     } else {
@@ -65,14 +78,24 @@
   <div class="row">
     {#if paint.kind === 'solid'}
       <Swatch color={paint.color} open={open === 'paint'} onclick={() => toggle('paint')} />
+    {:else if paint.kind === 'image'}
+      {@const img = paint}
+      <span class="swatch thumb" style:background-image={thumb ? `url(${thumb})` : 'none'} role="img" aria-label="Picture"></span>
+      <select aria-label="Picture scaling" value={img.scaleMode}
+        onchange={e => onchange({ ...img, scaleMode: e.currentTarget.value as 'fill' | 'fit' }, true)}>
+        <option value="fill">Fill</option>
+        <option value="fit">Fit</option>
+      </select>
     {:else}
       <button type="button" class="swatch" aria-label="Edit gradient on canvas" style:background={swatch(paint)} onclick={oneditgradient}></button>
     {/if}
-    <select aria-label="Paint type" value={paint.kind} onchange={e => setKind(e.currentTarget.value as Paint['kind'])}>
-      <option value="solid">Solid</option>
-      <option value="linear">Linear</option>
-      <option value="radial">Radial</option>
-    </select>
+    {#if paint.kind !== 'image'}
+      <select aria-label="Paint type" value={paint.kind} onchange={e => setKind(e.currentTarget.value as 'solid' | 'linear' | 'radial')}>
+        <option value="solid">Solid</option>
+        <option value="linear">Linear</option>
+        <option value="radial">Radial</option>
+      </select>
+    {/if}
     <label class="pct">
       <input type="number" inputmode="numeric" min="0" max="100" aria-label="Opacity" value={Math.round(paint.opacity * 100)}
         onchange={e => onchange({ ...paint, opacity: Math.min(1, Math.max(0, +e.currentTarget.value / 100)) }, true)} />%
@@ -85,7 +108,7 @@
     <ColorPicker color={p.color} onchange={(color, done) => onchange({ ...p, color }, done)} />
   {/if}
 
-  {#if paint.kind !== 'solid'}
+  {#if isGradient(paint)}
     {@const g = paint}
     {#each g.stops as stop, i (i)}
       <div class="row stop">
@@ -115,6 +138,7 @@
   .paint { display: grid; gap: 2px; }
   .row { display: flex; align-items: center; gap: 6px; min-height: var(--touch-target); }
   .stop { padding-left: 12px; }
+  .thumb { background: var(--border) center / cover no-repeat; }
   .swatch {
     flex: none;
     width: 36px;

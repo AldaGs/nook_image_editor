@@ -8,7 +8,7 @@ import { keyBetween, keysAfter } from '../doc/fractional.ts';
 import { createNode, type FramePreset } from '../doc/factory.ts';
 import { starterDoc } from '../doc/serialize.ts';
 import type { Op } from '../doc/ops.ts';
-import type { GradientPaint, Node, NodeProp, TextProps } from '../doc/types.ts';
+import { isGradient, type GradientPaint, type ImagePaint, type Node, type NodeProp, type TextProps } from '../doc/types.ts';
 import { applyVector, invert, multiply, rotation, translation, type Affine, type Point, type Rect } from '../geom/affine.ts';
 import { localFor, worldBounds } from './bounds.ts';
 import { frameAt } from './hit.ts';
@@ -147,7 +147,7 @@ export class Editor {
   gradientPaint(t: GradientTarget): GradientPaint | null {
     const n = this.doc.get(t.nodeId);
     const p = t.prop === 'fills' ? n?.fills[t.index] : n?.strokes[t.index]?.paint;
-    return p && p.kind !== 'solid' ? p : null;
+    return p && isGradient(p) ? p : null;
   }
 
   /** Ops that replace the target's paint. */
@@ -301,6 +301,31 @@ export class Editor {
     this.transact('Add frame', () => [{ t: 'add', node: frame }]);
     this.select([frame.id]);
     return frame;
+  }
+
+  /**
+   * Add a picture as a rectangle with an image fill. On a board it fits inside
+   * the board, centred; on the page it keeps its pixel size, centred on `at`.
+   */
+  addImage(img: { assetId: string; width: number; height: number }, name: string, at: Point): Node {
+    const frame = frameAt(this.doc, this.pageId, at);
+    const parentId = frame?.id ?? this.pageId;
+    let { width, height } = img;
+    let x = at.x - width / 2, y = at.y - height / 2;
+    if (frame) {
+      const s = Math.min(1, frame.width / width, frame.height / height);
+      width *= s;
+      height *= s;
+      x = (frame.width - width) / 2;
+      y = (frame.height - height) / 2;
+    }
+    const fill: ImagePaint = { kind: 'image', ...img, scaleMode: 'fill', opacity: 1, blendMode: 'normal', visible: true };
+    const node = createNode('rect', {
+      name, parentId, order: this.orderAtTop(parentId), fills: [fill],
+      transform: translation(Math.round(x), Math.round(y)), width: Math.round(width), height: Math.round(height),
+    });
+    this.transact('Add image', () => [{ t: 'add', node }]);
+    return node;
   }
 
   /** Delete the selection and everything inside it. */

@@ -14,6 +14,7 @@
   import { editor, loadSession, ui } from './lib/session.svelte';
   import { shareOrDownload } from './lib/files';
   import { attachShortcuts } from './lib/shortcuts';
+  import { imageFiles, importImages } from './lib/assets';
 
   let engine = $state<Engine | null>(null);
   let layersOpen = $state(false);
@@ -30,7 +31,18 @@
   onMount(() => {
     loadSession();
     requestPersistence(); // ask the browser not to evict local files (matters on iOS)
-    return attachShortcuts(editor, { fit });
+    // Pasted pictures land in the middle of the view (text fields keep their own paste).
+    const paste = (e: ClipboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && /^(INPUT|TEXTAREA)$/.test(t.tagName)) return;
+      const files = imageFiles(e.clipboardData?.files);
+      if (!files.length) return;
+      e.preventDefault();
+      importImages(files);
+    };
+    window.addEventListener('paste', paste);
+    const detach = attachShortcuts(editor, { fit });
+    return () => { window.removeEventListener('paste', paste); detach(); };
   });
 
   function fit() {

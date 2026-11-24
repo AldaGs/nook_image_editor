@@ -10,6 +10,7 @@
   import eyeOff from 'lucide-static/icons/eye-off.svg?raw';
   import frame from 'lucide-static/icons/frame.svg?raw';
   import group from 'lucide-static/icons/group.svg?raw';
+  import image from 'lucide-static/icons/image.svg?raw';
   import layers from 'lucide-static/icons/layers.svg?raw';
   import layoutTemplate from 'lucide-static/icons/layout-template.svg?raw';
   import listChecks from 'lucide-static/icons/list-checks.svg?raw';
@@ -31,7 +32,7 @@
   import x from 'lucide-static/icons/x.svg?raw';
 
   const ICONS = {
-    arrowDown, arrowUp, chevronDown, chevronRight, circle, eye, eyeOff, frame, group, layers,
+    arrowDown, arrowUp, chevronDown, chevronRight, circle, eye, eyeOff, frame, group, image, layers,
     layoutTemplate, listChecks, lock, lockOpen, maximize, minus, pipette, plus, pointer, redo, share, sliders, square, trash, type: type_,
     undo, ungroup, x,
   };

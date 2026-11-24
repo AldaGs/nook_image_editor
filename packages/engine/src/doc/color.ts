@@ -54,7 +54,7 @@ export function documentColors(doc: Doc, limit = 12): RGBA[] {
     if (e) e.n++;
     else counts.set(key, { c, n: 1 });
   };
-  const paint = (p: Paint) => (p.kind === 'solid' ? add(p.color) : p.stops.forEach(s => add(s.color)));
+  const paint = (p: Paint) => (p.kind === 'solid' ? add(p.color) : p.kind === 'image' ? undefined : p.stops.forEach(s => add(s.color)));
   for (const n of doc.nodes.values()) {
     if (n.type === 'page') continue;
     n.fills.forEach(paint);

@@ -7,6 +7,7 @@
   import { canvasTheme } from '../lib/theme.svelte';
   import { canvasRef, editor } from '../lib/session.svelte';
   import { loadFont } from '../lib/fonts';
+  import { imageFiles, importImages, loadAsset } from '../lib/assets';
   import ActionBar from './ActionBar.svelte';
   import FrameLabels from './FrameLabels.svelte';
   import TextInput from './TextInput.svelte';
@@ -29,6 +30,7 @@
       wasmUrl,
       editor,
       loadFont,
+      loadAsset,
       theme: canvasTheme(),
       // Show fps while frames are drawn continuously; hide it shortly after they stop.
       onFps: v => { fps = v; clearTimeout(fpsTimer); fpsTimer = setTimeout(() => (fps = null), 1500); },
@@ -42,14 +44,26 @@
       })
       .catch(err => { error = err instanceof Error ? err.message : String(err); });
 
-    return () => { disposed = true; live?.destroy(); engine = canvasRef.engine = null; };
+    canvasRef.canvas = canvas!;
+    return () => { disposed = true; live?.destroy(); engine = canvasRef.engine = null; canvasRef.canvas = null; };
   });
 
   // Recolour the canvas when the system theme changes.
   $effect(() => { engine?.setTheme(canvasTheme()); });
 </script>
 
-<div class="wrap">
+<!-- Pictures dropped on the canvas land where they're dropped. -->
+<div
+  class="wrap"
+  role="presentation"
+  ondragover={e => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault(); }}
+  ondrop={e => {
+    const files = imageFiles(e.dataTransfer?.files);
+    if (!files.length) return;
+    e.preventDefault();
+    importImages(files, { x: e.clientX, y: e.clientY });
+  }}
+>
   <canvas bind:this={canvas}></canvas>
   <div class="overlay">
     <FrameLabels {labels} />

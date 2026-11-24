@@ -212,6 +212,11 @@ function paint(n: Node, centre: Point, report: string[]): { fill: unknown; gradi
   if (top.blendMode !== 'normal') report.push(`"${n.name}": a fill's own blend mode isn't in PBC; it was drawn as Normal.`);
   const fill = k(withOpacity(paintColor(top), top.opacity));
   if (top.kind === 'solid') return { fill };
+  if (top.kind === 'image') {
+    // ponytail: PBC reads footage from files beside the project; Nook's export is one .pbc file for now.
+    report.push(`"${n.name}": image fills aren't in the PBC export yet (Stage 4); it was drawn as a gray box.`);
+    return { fill };
+  }
   const local = (u: Point) => ({ x: round(u.x * n.width - centre.x), y: round(u.y * n.height - centre.y) });
   return {
     fill,
@@ -230,7 +235,7 @@ function stroke(n: Node, report: string[]): unknown {
   const s = visible[visible.length - 1];
   if (!s) return null;
   if (visible.length > 1) report.push(`"${n.name}" has ${visible.length} strokes; only the top one was exported.`);
-  if (s.paint.kind !== 'solid') report.push(`"${n.name}": gradient strokes aren't in PBC; it was flattened to one colour.`);
+  if (s.paint.kind !== 'solid') report.push(`"${n.name}": ${s.paint.kind === 'image' ? 'image' : 'gradient'} strokes aren't in PBC; it was flattened to one colour.`);
   if (s.align !== 'center') report.push(`"${n.name}": its stroke is ${s.align} in Nook but centred on the outline in PBC.`);
   return { color: k(withOpacity(paintColor(s.paint), s.paint.opacity)), width: k(s.width) };
 }

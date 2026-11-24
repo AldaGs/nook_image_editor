@@ -5,7 +5,7 @@
 // until something inside it changes, so dragging one shape doesn't re-walk
 // every other board.
 
-import type { Canvas, CanvasKit, ImageFilter, Paint as SkPaint, Paragraph, Path as SkPath, SkPicture, Surface, TypefaceFontProvider } from 'canvaskit-wasm';
+import type { Canvas, CanvasKit, Image as SkImage, ImageFilter, Paint as SkPaint, Paragraph, Path as SkPath, SkPicture, Surface, TypefaceFontProvider } from 'canvaskit-wasm';
 import type { Camera } from '../camera/camera.ts';
 import type { Doc } from '../doc/document.ts';
 import type { BlendMode, Node, Paint, RGBA, Shadow, Stroke, TextProps } from '../doc/types.ts';
@@ -30,6 +30,11 @@ export class Renderer {
   private clear: SkPaint; // transparent background paint for text runs
   /** Fetches a font's file for a family and weight (the app knows where fonts live). */
   loadFont: ((family: string, weight: number) => Promise<ArrayBuffer | null>) | null = null;
+  /** Fetches an image file by its asset id (content hash). */
+  loadAsset: ((id: string) => Promise<ArrayBuffer | null>) | null = null;
+  /** Called after an image arrives, so the canvas redraws. */
+  onImagesChanged: (() => void) | null = null;
+  private images = new Map<string, SkImage | null>(); // null: loading, or failed
   /** Called after a font arrives, so text can be re-measured and redrawn. */
   onFontsChanged: (() => void) | null = null;
   private picturesFor: Doc | null = null;
@@ -141,6 +146,8 @@ export class Renderer {
 
   destroy(): void {
     this.clearPictures();
+    this.images.forEach(i => i?.delete());
+    this.images.clear();
     this.clear.delete();
     this.fonts.delete();
     this.fill.delete();
@@ -219,6 +226,22 @@ export class Renderer {
         return null;
     }
     return b.detachAndDelete();
+  }
+
+  // ── Images ───────────────────────────────────────────────────
+
+  /** The decoded image for an asset, or null while it loads (boards redraw when it arrives). */
+  private image(id: string): SkImage | null {
+    if (this.images.has(id)) return this.images.get(id)!;
+    this.images.set(id, null);
+    this.loadAsset?.(id).then(buf => {
+      const img = buf && this.ck.MakeImageFromEncoded(new Uint8Array(buf));
+      if (!img) return;
+      this.images.set(id, img);
+      this.clearPictures();
+      this.onImagesChanged?.();
+    }).catch(() => { /* stays a placeholder */ });
+    return null;
   }
 
   // ── Text ─────────────────────────────────────────────────────
@@ -371,6 +394,17 @@ export class Renderer {
     let shader = null;
     if (f.kind === 'solid') {
       p.setColor(this.color(f.color, f.opacity));
+    } else if (f.kind === 'image') {
+      const img = this.image(f.assetId);
+      if (!img) {
+        p.setColor(this.color({ r: 0.5, g: 0.5, b: 0.5, a: 0.25 })); // placeholder while it loads
+      } else {
+        // Scale the picture to cover (fill) or fit inside the box, centred.
+        const s = (f.scaleMode === 'fill' ? Math.max : Math.min)(n.width / img.width(), n.height / img.height());
+        const tx = (n.width - img.width() * s) / 2, ty = (n.height - img.height() * s) / 2;
+        shader = img.makeShaderOptions(this.ck.TileMode.Decal, this.ck.TileMode.Decal, this.ck.FilterMode.Linear, this.ck.MipmapMode.Linear, [s, 0, tx, 0, s, ty, 0, 0, 1]);
+        p.setShader(shader);
+      }
     } else {
       const a = { x: f.from.x * n.width, y: f.from.y * n.height };
       const b = { x: f.to.x * n.width, y: f.to.y * n.height };

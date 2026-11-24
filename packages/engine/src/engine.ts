@@ -23,6 +23,8 @@ export interface EngineOptions {
   onFps?: (fps: number) => void;
   /** Called after every redraw that moved the camera or changed the document. */
   onView?: () => void;
+  /** An image file by asset id (content hash); null if it isn't stored. */
+  loadAsset?: (id: string) => Promise<ArrayBuffer | null>;
   /** Font file for a family at (or nearest to) a weight; null if there isn't one. */
   loadFont?: (family: string, weight: number) => Promise<ArrayBuffer | null>;
 }
@@ -63,6 +65,8 @@ export async function createEngine(canvas: HTMLCanvasElement, opts: EngineOption
   const loop = new FrameLoop(() => { renderer.render(camera, editor); opts.onView?.(); }, opts.onFps ?? (() => {}));
   // Text is measured with the real fonts from here on; boxes sized by the estimate catch up as fonts arrive.
   renderer.loadFont = opts.loadFont ?? null;
+  renderer.loadAsset = opts.loadAsset ?? null;
+  renderer.onImagesChanged = () => loop.invalidate();
   renderer.onFontsChanged = () => { editor.refreshTextBoxes(); loop.invalidate(); };
   editor.measureText = (t, w) => renderer.measure(t, w);
   editor.refreshTextBoxes();

@@ -243,3 +243,18 @@ test('a typing session is one undo step, and text left empty is removed', () => 
   ed.undo();
   assert.ok(ed.doc.get(node.id), 'and comes back with undo');
 });
+
+test('a picture fits inside the board it lands on, centred; on the page it keeps its size', () => {
+  const ed = new Editor(starterDoc());
+  const board = ed.doc.children(ed.pageId)[0]!; // 1080×1350 at (0, 0)
+  const img = { assetId: 'abc', width: 3000, height: 2000 };
+  const a = ed.addImage(img, 'Beach', { x: 100, y: 100 });
+  assert.equal(a.parentId, board.id);
+  assert.deepEqual([a.width, a.height], [1080, 720]);
+  assert.deepEqual([a.transform[4], a.transform[5]], [0, 315], 'centred on the board');
+  assert.deepEqual(a.fills[0], { kind: 'image', ...img, scaleMode: 'fill', opacity: 1, blendMode: 'normal', visible: true });
+
+  const b = ed.addImage({ assetId: 'def', width: 400, height: 300 }, 'Loose', { x: -5000, y: 0 });
+  assert.equal(b.parentId, ed.pageId);
+  assert.deepEqual([b.width, b.height, b.transform[4], b.transform[5]], [400, 300, -5200, -150]);
+});
