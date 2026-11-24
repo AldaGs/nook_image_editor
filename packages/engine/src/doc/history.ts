@@ -4,7 +4,7 @@
 import type { Doc } from './document.ts';
 import type { Op } from './ops.ts';
 
-interface Entry { label: string; forward: Op[]; inverse: Op[] }
+interface Entry { label: string; forward: Op[]; inverse: Op[]; mergeKey?: string }
 
 const LIMIT = 500;
 
@@ -42,11 +42,23 @@ export class History {
     else this.onChange();
   }
 
-  /** Close the transaction as one undo step. Empty transactions are dropped. */
-  commit(): void {
+  /**
+   * Close the transaction as one undo step. Empty transactions are dropped.
+   * With a `mergeKey` equal to the last step's (and nothing undone since), it
+   * joins that step instead: a run of typing undoes as one.
+   */
+  commit(mergeKey?: string): void {
     const e = this.pending;
     this.pending = null;
     if (!e || !e.forward.length) return;
+    const last = this.undoStack[this.undoStack.length - 1];
+    if (mergeKey && last?.mergeKey === mergeKey && !this.redoStack.length) {
+      last.forward.push(...e.forward);
+      last.inverse.push(...e.inverse);
+      this.onChange();
+      return;
+    }
+    e.mergeKey = mergeKey;
     this.undoStack.push(e);
     if (this.undoStack.length > LIMIT) this.undoStack.shift();
     this.redoStack = [];

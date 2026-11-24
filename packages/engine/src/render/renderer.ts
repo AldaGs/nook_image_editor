@@ -9,7 +9,7 @@ import type { Canvas, CanvasKit, ImageFilter, Paint as SkPaint, Paragraph, Path 
 import type { Camera } from '../camera/camera.ts';
 import type { Doc } from '../doc/document.ts';
 import type { BlendMode, Node, Paint, RGBA, Shadow, Stroke, TextProps } from '../doc/types.ts';
-import { intersects, type Affine, type Point, type Rect } from '../geom/affine.ts';
+import { apply, intersects, type Affine, type Point, type Rect } from '../geom/affine.ts';
 import { worldBounds, worldCorners } from '../editor/bounds.ts';
 import type { Editor } from '../editor/editor.ts';
 import { gradientHandles, handlesFor, selectionQuad } from '../editor/handles.ts';
@@ -256,6 +256,45 @@ export class Renderer {
     return size;
   }
 
+  private layoutFor(n: Node): Paragraph {
+    const t = n.text!;
+    return this.paragraph(t, null, t.sizing === 'autoWidth' ? n.width + 1 : n.width);
+  }
+
+  /** Character offset nearest a point in the text layer's own space. */
+  textIndexAt(n: Node, local: Point): number {
+    if (!n.text?.content) return 0;
+    const p = this.layoutFor(n);
+    const i = p.getGlyphPositionAtCoordinate(local.x, local.y).pos;
+    p.delete();
+    return Math.min(Math.max(0, i), n.text.content.length);
+  }
+
+  /** The caret at offset `i` (a vertical segment), and selection boxes for [start, end), in the layer's space. */
+  textGeometry(n: Node, start: number, end: number): { caret: { x: number; y: number; h: number }; boxes: Rect[] } {
+    const t = n.text!;
+    const p = this.layoutFor(n);
+    const lines = p.getLineMetrics();
+    // The last line starting at or before the caret (a caret after a newline belongs to the next line).
+    const line = [...lines].reverse().find(l => l.startIndex <= end) ?? lines[0];
+    let x = 0;
+    if (line) {
+      if (!t.content) {
+        x = { left: 0, center: n.width / 2, right: n.width }[t.align];
+      } else if (end === line.startIndex) {
+        x = line.left;
+      } else {
+        const r = p.getRectsForRange(end - 1, end, this.ck.RectHeightStyle.Max, this.ck.RectWidthStyle.Tight)[0];
+        x = r ? (r.dir === this.ck.TextDirection.RTL ? r.rect[0]! : r.rect[2]!) : line.left + line.width;
+      }
+    }
+    const caret = line ? { x, y: line.baseline - line.ascent, h: line.ascent + line.descent } : { x: 0, y: 0, h: t.size };
+    const boxes = start === end ? [] : p.getRectsForRange(start, end, this.ck.RectHeightStyle.Max, this.ck.RectWidthStyle.Tight)
+      .map(r => ({ x: r.rect[0]!, y: r.rect[1]!, width: r.rect[2]! - r.rect[0]!, height: r.rect[3]! - r.rect[1]! }));
+    p.delete();
+    return { caret, boxes };
+  }
+
   /** Strokes set outside draw first at double width, under the fills; the rest draw on top. */
   private drawText(c: Canvas, n: Node): void {
     const t = n.text!;
@@ -403,6 +442,27 @@ export class Renderer {
     }
 
     // Marquee: translucent fill + outline.
+    // Typing: selection boxes and the caret, through the layer's transform.
+    const te = editor.textEdit;
+    const tn = te && editor.doc.get(te.nodeId);
+    if (te && tn?.text) {
+      const m = editor.doc.worldTransform(tn.id);
+      const scr = (q: Point) => camera.worldToScreen(apply(m, q));
+      const { caret, boxes } = this.textGeometry(tn, te.start, te.end);
+      this.fill.setColor(this.color(this.theme.accent, 0.3));
+      for (const b of boxes) {
+        const path = this.polygon([scr({ x: b.x, y: b.y }), scr({ x: b.x + b.width, y: b.y }), scr({ x: b.x + b.width, y: b.y + b.height }), scr({ x: b.x, y: b.y + b.height })]);
+        c.drawPath(path, this.fill);
+        path.delete();
+      }
+      if (te.start === te.end) {
+        const a = scr({ x: caret.x, y: caret.y }), b = scr({ x: caret.x, y: caret.y + caret.h });
+        this.line.setStrokeWidth(2);
+        c.drawLine(a.x, a.y, b.x, b.y, this.line);
+        this.line.setStrokeWidth(1.5);
+      }
+    }
+
     // Gradient end points: a line between two rings filled with the end colours.
     const gh = gradientHandles(editor, camera);
     const g = editor.gradientEdit && editor.gradientPaint(editor.gradientEdit);

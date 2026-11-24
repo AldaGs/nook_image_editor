@@ -29,6 +29,9 @@ export const estimateText: MeasureText = (t, width) => {
   return { width: width ?? w, height: wrapped * line };
 };
 
+/** The text being typed into, and its selection (UTF-16 offsets, like a <textarea>). */
+export interface TextEdit { nodeId: string; start: number; end: number }
+
 /** One paint on a node: a fill, or a stroke's paint. */
 export interface GradientTarget { nodeId: string; prop: 'fills' | 'strokes'; index: number }
 
@@ -52,6 +55,15 @@ export class Editor {
   multiSelect = false;
   /** World-space marquee while one is being dragged (drawn by the renderer). */
   marquee: Rect | null = null;
+  /** The text layer being edited on the canvas, if any. */
+  textEdit: TextEdit | null = null;
+  /**
+   * Called synchronously when editing starts or the canvas moves the caret, so
+   * the UI can focus its hidden <textarea> inside the tap (iOS only opens the
+   * keyboard for a focus that happens during a user gesture).
+   */
+  onTextEdit: ((e: TextEdit, content: string) => void) | null = null;
+  private textSession = 0;
   /** Lays text out; the engine swaps in CanvasKit's measurement once it has loaded. */
   measureText: MeasureText = estimateText;
   /** The gradient whose end points are being dragged on the canvas, if any. */
@@ -104,6 +116,7 @@ export class Editor {
   private changed(): void {
     // Drop selected ids that an undo or delete removed.
     this.selection = this.selection.filter(id => this.doc.nodes.has(id));
+    if (this.textEdit && !this.doc.nodes.has(this.textEdit.nodeId)) this.textEdit = null;
     if (this.gradientEdit && !this.gradientPaint(this.gradientEdit)) this.gradientEdit = null;
     this.emit();
   }
@@ -116,6 +129,7 @@ export class Editor {
   // ── Selection ────────────────────────────────────────────────
 
   select(ids: string[]): void {
+    if (this.textEdit && !ids.includes(this.textEdit.nodeId)) this.endTextEdit();
     this.selection = [...new Set(ids)];
     if (this.gradientEdit && !this.selection.includes(this.gradientEdit.nodeId)) this.gradientEdit = null;
     this.emit();
@@ -199,6 +213,58 @@ export class Editor {
     this.history.rewind();
     const nodes = ids.map(id => this.doc.get(id)).filter((n): n is Node => n?.type === 'text');
     this.transact('Edit text', () => nodes.flatMap(n => this.textOps(n, patch)));
+  }
+
+  /** Start typing into a text layer, with the given selection (default: all of it). */
+  startTextEdit(id: string, start?: number, end?: number): void {
+    const n = this.doc.get(id);
+    if (n?.type !== 'text' || !n.text) return;
+    if (this.textEdit?.nodeId !== id) this.textSession++;
+    const len = n.text.content.length;
+    this.textEdit = { nodeId: id, start: start ?? 0, end: end ?? start ?? len };
+    this.selection = [id];
+    this.onTextEdit?.(this.textEdit, n.text.content);
+    this.emit();
+  }
+
+  /** New content from the keyboard, and where the selection is now. One undo step per editing session. */
+  typeText(content: string, start: number, end: number): void {
+    const t = this.textEdit;
+    const n = t && this.doc.get(t.nodeId);
+    if (!t || !n?.text) return;
+    t.start = start;
+    t.end = end;
+    if (content === n.text.content) return this.emit();
+    this.history.begin('Typing');
+    this.transact('Typing', () => [
+      ...this.textOps(n, { content }),
+      { t: 'set', id: n.id, prop: 'name', value: content.trim().split('\n')[0]!.slice(0, 40) || 'Text' } as Op,
+    ]);
+    this.history.commit(`typing:${this.textSession}`);
+  }
+
+  /** Move the caret or selection (from the keyboard, or a tap on the text). */
+  setTextSelection(start: number, end: number, fromCanvas = false): void {
+    const t = this.textEdit;
+    if (!t || (t.start === start && t.end === end)) return;
+    t.start = start;
+    t.end = end;
+    const n = this.doc.get(t.nodeId);
+    if (fromCanvas && n?.text) this.onTextEdit?.(t, n.text.content);
+    this.emit();
+  }
+
+  /** Stop typing. A text layer left empty is removed (its own undo step). */
+  endTextEdit(): void {
+    const t = this.textEdit;
+    if (!t) return;
+    this.textEdit = null;
+    const n = this.doc.get(t.nodeId);
+    if (n?.text && !n.text.content.trim()) {
+      this.transact('Delete empty text', () => [{ t: 'remove', id: n.id }]);
+      this.selection = this.selection.filter(id => id !== n.id);
+    }
+    this.emit();
   }
 
   /**

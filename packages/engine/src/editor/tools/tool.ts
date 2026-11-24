@@ -19,6 +19,8 @@ export interface ToolContext {
   camera: Camera;
   /** Redraw without a document change (camera moves, overlays). */
   invalidate(): void;
+  /** The character offset nearest a world point inside a text layer. */
+  textIndexAt(nodeId: string, world: Point): number;
 }
 
 export interface Tool {

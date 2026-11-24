@@ -18,6 +18,7 @@ type Mode =
   | { kind: 'resize'; sel: SelectionBox; handle: Handle }
   | { kind: 'rotate'; node: Node; t0: Affine; centre: Point; a0: number }
   | { kind: 'gradient'; end: 'from' | 'to' }
+  | { kind: 'textSelect'; anchor: number }
   | { kind: 'marquee'; base: string[] }
   | { kind: 'pan'; last: Point };
 
@@ -35,6 +36,19 @@ export class SelectTool implements Tool {
   down(p: PointerInfo): void {
     const { editor, camera } = this.ctx;
     this.downAt = p;
+
+    // Typing: a press inside the text moves the caret (a drag selects); anywhere else stops typing.
+    const te = editor.textEdit;
+    if (te) {
+      const tn = editor.doc.get(te.nodeId);
+      if (tn && hitStack(editor.doc, editor.pageId, p.world, 0).includes(tn)) {
+        const i = this.ctx.textIndexAt(tn.id, p.world);
+        editor.setTextSelection(i, i, true);
+        this.mode = { kind: 'textSelect', anchor: i };
+        return;
+      }
+      editor.endTextEdit();
+    }
 
     // While a gradient is being edited, its end points are the only handles.
     const gh = gradientHandles(editor, camera);
@@ -105,6 +119,13 @@ export class SelectTool implements Tool {
         editor.history.rewind();
         this.rotate(mode, p);
         break;
+      case 'textSelect': {
+        const te = editor.textEdit;
+        if (!te) break;
+        const i = this.ctx.textIndexAt(te.nodeId, p.world);
+        editor.setTextSelection(Math.min(mode.anchor, i), Math.max(mode.anchor, i), true);
+        break;
+      }
       case 'gradient': {
         const t = editor.gradientEdit;
         const g = t && editor.gradientPaint(t);
@@ -136,6 +157,7 @@ export class SelectTool implements Tool {
     const { editor } = this.ctx;
     const m = this.mode;
     if (m.kind === 'press') this.tap(m.stack, p);
+    if (m.kind === 'textSelect') { this.mode = { kind: 'idle' }; this.downAt = null; return; }
     if (m.kind === 'move') { editor.guides = []; editor.dropAt(m.nodes, p.world); }
     if (m.kind === 'move' || m.kind === 'resize' || m.kind === 'rotate' || m.kind === 'gradient') editor.history.commit();
     if (m.kind === 'marquee') { editor.marquee = null; editor.emit(); }
@@ -195,6 +217,12 @@ export class SelectTool implements Tool {
       if (current >= 0) pick = stack[(current + 1) % stack.length]!;
     }
     if (!pick) { if (!additive) editor.select([]); return; }
+    // A tap on the text layer that is already the only selection starts typing there.
+    if (!additive && pick.type === 'text' && editor.selection.length === 1 && editor.selection[0] === pick.id) {
+      const i = this.ctx.textIndexAt(pick.id, p.world);
+      editor.startTextEdit(pick.id, i, i);
+      return;
+    }
     if (additive) editor.toggleSelected(pick.id);
     else editor.select([pick.id]);
   }

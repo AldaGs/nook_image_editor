@@ -41,8 +41,8 @@ export class TextTool implements Tool {
     node.name = node.text.content;
 
     editor.transact('Add text', () => [{ t: 'add', node }]);
-    editor.select([node.id]);
     editor.setTool('select');
+    editor.startTextEdit(node.id); // placeholder selected, so typing replaces it
   }
 
   cancel(): void { this.start = null; }

@@ -217,3 +217,29 @@ test('auto-sized text boxes follow their text; a resized box keeps its size', ()
   ed.undo();
   assert.equal(ed.doc.get(node.id)!.text!.sizing, 'autoHeight');
 });
+
+test('a typing session is one undo step, and text left empty is removed', () => {
+  const ed = new Editor(starterDoc());
+  const frame = ed.doc.children(ed.pageId)[0]!;
+  const node = createNode('text', { parentId: frame.id, order: 'z' });
+  ed.transact('Add text', () => [{ t: 'add', node }]);
+  const focused: string[] = [];
+  ed.onTextEdit = (_e, content) => focused.push(content);
+
+  ed.startTextEdit(node.id);
+  assert.deepEqual(ed.textEdit, { nodeId: node.id, start: 0, end: 4 }, 'the placeholder starts selected');
+  assert.deepEqual(focused, ['Text'], 'the UI is told synchronously, to focus its input');
+  for (const s of ['H', 'Hi', 'Hi!']) ed.typeText(s, s.length, s.length);
+  assert.equal(ed.doc.get(node.id)!.name, 'Hi!');
+  ed.endTextEdit();
+  ed.undo();
+  assert.equal(ed.doc.get(node.id)!.text!.content, 'Text', 'three keystrokes, one undo');
+
+  ed.startTextEdit(node.id);
+  ed.typeText('', 0, 0);
+  ed.select([]); // tapping elsewhere ends typing
+  assert.equal(ed.textEdit, null);
+  assert.equal(ed.doc.get(node.id), undefined, 'empty text is removed');
+  ed.undo();
+  assert.ok(ed.doc.get(node.id), 'and comes back with undo');
+});

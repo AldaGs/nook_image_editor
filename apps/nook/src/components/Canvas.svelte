@@ -9,11 +9,12 @@
   import { loadFont } from '../lib/fonts';
   import ActionBar from './ActionBar.svelte';
   import FrameLabels from './FrameLabels.svelte';
+  import TextInput from './TextInput.svelte';
   import ViewInfo from './ViewInfo.svelte';
 
   let { engine = $bindable(null), onDesign }: { engine?: Engine | null; onDesign: () => void } = $props();
 
-  let canvas: HTMLCanvasElement;
+  let canvas = $state<HTMLCanvasElement>();
   let error = $state<string | null>(null);
   let labels = $state<FrameLabel[]>([]);
   let zoom = $state(1);
@@ -24,7 +25,7 @@
     let live: Engine | null = null;
     let disposed = false;
 
-    createEngine(canvas, {
+    createEngine(canvas!, {
       wasmUrl,
       editor,
       loadFont,
@@ -55,6 +56,7 @@
   </div>
   <ViewInfo {zoom} {fps} />
   <ActionBar {onDesign} />
+  {#if canvas}<TextInput {engine} {canvas} />{/if}
   {#if error}
     <p class="status">{error}</p>
   {:else if !engine}

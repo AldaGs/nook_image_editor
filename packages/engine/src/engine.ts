@@ -13,7 +13,7 @@ import { SelectTool } from './editor/tools/select.ts';
 import { ShapeTool } from './editor/tools/shape.ts';
 import { TextTool } from './editor/tools/text.ts';
 import type { Tool, ToolContext } from './editor/tools/tool.ts';
-import type { Point } from './geom/affine.ts';
+import { apply, invert, type Point, type Rect } from './geom/affine.ts';
 
 export interface EngineOptions {
   wasmUrl: string;
@@ -35,6 +35,12 @@ export interface Engine {
   /** Screen positions of top-level frame names, for the UI to draw as labels. */
   frameLabels(): FrameLabel[];
   setTheme(theme: RendererTheme): void;
+  /**
+   * Pan so the text caret sits inside `visible` (CSS px relative to the
+   * canvas), e.g. the part of the screen the on-screen keyboard leaves free.
+   * Returns the caret's screen position for placing the hidden input.
+   */
+  revealCaret(visible: Rect): Point | null;
   invalidate(): void;
   destroy(): void;
 }
@@ -51,7 +57,15 @@ export async function createEngine(canvas: HTMLCanvasElement, opts: EngineOption
   renderer.onFontsChanged = () => { editor.refreshTextBoxes(); loop.invalidate(); };
   editor.measureText = (t, w) => renderer.measure(t, w);
   editor.refreshTextBoxes();
-  const ctx: ToolContext = { editor, camera, invalidate: () => loop.invalidate() };
+  const ctx: ToolContext = {
+    editor,
+    camera,
+    invalidate: () => loop.invalidate(),
+    textIndexAt(id, world) {
+      const n = editor.doc.get(id);
+      return n ? renderer.textIndexAt(n, apply(invert(editor.doc.worldTransform(id)), world)) : 0;
+    },
+  };
   const tools: Record<ToolId, Tool> = {
     select: new SelectTool(ctx),
     rect: new ShapeTool(ctx, 'rect'),
@@ -89,6 +103,23 @@ export async function createEngine(canvas: HTMLCanvasElement, opts: EngineOption
         });
     },
     setTheme(theme) { renderer.theme = theme; loop.invalidate(); },
+    revealCaret(visible) {
+      const te = editor.textEdit;
+      const n = te && editor.doc.get(te.nodeId);
+      if (!te || !n?.text) return null;
+      const { caret } = renderer.textGeometry(n, te.end, te.end);
+      const m = editor.doc.worldTransform(n.id);
+      const top = camera.worldToScreen(apply(m, { x: caret.x, y: caret.y }));
+      const bottom = camera.worldToScreen(apply(m, { x: caret.x, y: caret.y + caret.h }));
+      const margin = 24;
+      let dx = 0, dy = 0;
+      if (Math.max(top.y, bottom.y) > visible.y + visible.height - margin) dy = visible.y + visible.height - margin - Math.max(top.y, bottom.y);
+      if (Math.min(top.y, bottom.y) < visible.y + margin) dy = visible.y + margin - Math.min(top.y, bottom.y);
+      if (top.x > visible.x + visible.width - margin) dx = visible.x + visible.width - margin - top.x;
+      if (top.x < visible.x + margin) dx = visible.x + margin - top.x;
+      if (dx || dy) { camera.panBy(dx, dy); loop.invalidate(); }
+      return { x: bottom.x + dx, y: bottom.y + dy };
+    },
     invalidate: () => loop.invalidate(),
     destroy() {
       loop.stop();

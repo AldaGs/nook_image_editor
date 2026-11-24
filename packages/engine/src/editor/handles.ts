@@ -59,7 +59,7 @@ export function gradientHandles(editor: Editor, camera: Camera): { from: Point; 
 }
 
 export function handlesFor(editor: Editor, camera: Camera): Handle[] {
-  if (editor.gradientEdit) return []; // the gradient's own handles are showing instead
+  if (editor.gradientEdit || editor.textEdit) return []; // gradient end points, or the caret, instead
   const sel = selectionBox(editor);
   const quad = selectionQuad(editor, camera);
   if (!sel || !quad) return [];
