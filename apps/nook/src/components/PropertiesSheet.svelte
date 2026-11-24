@@ -147,10 +147,11 @@
         <div class="row wrap">
           <select aria-label="Line background" value={t.background?.style ?? 'none'}
             onchange={e => { const v = e.currentTarget.value; textBg(v === 'none' ? undefined
-              : { color: { r: 1, g: 1, b: 1, a: 1 }, padding: Math.round(t.size * 0.4), ...t.background, style: v as 'pill' | 'highlight' }); }}>
+              : { color: { r: 1, g: 1, b: 1, a: 1 }, padding: Math.round(t.size * 0.4), ...t.background, style: v as 'pill' | 'highlight' | 'bubble' }); }}>
             <option value="none">No background</option>
             <option value="pill">Pill</option>
             <option value="highlight">Highlight</option>
+            <option value="bubble">Bubble</option>
           </select>
           {#if t.background}
             {@const bg = t.background}

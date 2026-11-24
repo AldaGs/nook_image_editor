@@ -414,7 +414,17 @@ export class Renderer {
     const paint = new this.ck.Paint();
     paint.setAntiAlias(true);
     paint.setColor(this.ck.Color4f(bg.color.r, bg.color.g, bg.color.b, bg.color.a));
-    for (const box of lineBoxes(p.getLineMetrics(), bg.padding)) {
+    const boxes = lineBoxes(p.getLineMetrics(), bg.padding);
+    const b = bg.style === 'bubble' ? bubble(boxes, bg.padding, t.align) : null;
+    if (b) {
+      // One path: its fill covers each pixel once, so a translucent colour doesn't double up where the tail meets the box.
+      const path = new this.ck.PathBuilder()
+        .addRRect(this.ck.RRectXY(this.ck.XYWHRect(b.box.x, b.box.y, b.box.width, b.box.height), b.radius, b.radius))
+        .addPolygon(b.tail.flatMap(q => [q.x, q.y]), true).detachAndDelete();
+      c.drawPath(path, paint);
+      path.delete();
+    }
+    else for (const box of boxes) {
       const r = bg.style === 'pill' ? box.height / 2 : 0;
       c.drawRRect(this.ck.RRectXY(this.ck.XYWHRect(box.x, box.y, box.width, box.height), r, r), paint);
     }
@@ -687,4 +697,16 @@ export function lineBoxes(lines: { left: number; width: number; baseline: number
     x: l.left - pad, y: l.baseline - l.ascent - pad / 2,
     width: l.width + pad * 2, height: l.ascent + l.descent + pad,
   }));
+}
+
+/** One rounded box round every line, with a tail under it on the text's side (pure, for tests). */
+export function bubble(boxes: Rect[], pad: number, align: 'left' | 'center' | 'right'): { box: Rect; radius: number; tail: Point[] } | null {
+  if (!boxes.length) return null;
+  const x = Math.min(...boxes.map(b => b.x)), y = Math.min(...boxes.map(b => b.y));
+  const box = { x, y, width: Math.max(...boxes.map(b => b.x + b.width)) - x, height: Math.max(...boxes.map(b => b.y + b.height)) - y + pad };
+  const radius = Math.min(pad * 1.5, box.height / 2);
+  const w = Math.max(pad, 12), bottom = box.y + box.height;
+  const start = align === 'left' ? box.x + radius : align === 'right' ? box.x + box.width - radius - w : box.x + box.width / 2 - w / 2;
+  const tip = align === 'right' ? start + w : start;
+  return { box, radius, tail: [{ x: start, y: bottom - 1 }, { x: start + w, y: bottom - 1 }, { x: tip, y: bottom + w }] };
 }
