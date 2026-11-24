@@ -261,12 +261,13 @@ function precompLayer(doc: Doc, n: Node, layer: Record<string, unknown>, angle: 
 }
 
 /**
- * A mask group as a track matte: the content (every child but the bottom one)
+ * A mask group as a track matte: the content (every child but the top one)
  * in its own precomp, matted by the mask layer, which sits right above it as
  * PBC's mattes read the next sibling up.
  */
 function maskedGroup(doc: Doc, n: Node, layer: Record<string, unknown>, angle: number, ctx: Ctx): unknown {
-  const [mask, ...content] = doc.children(n.id);
+  const kids = doc.children(n.id);
+  const mask = kids.at(-1), content = kids.slice(0, -1);
   const box = localBox(doc, n);
   const compId = addComp(ctx.sh, `${n.name} content`, box.width, box.height, CLEAR, undefined, inner => ({
     root: { transform: transform(-box.x, -box.y, 0, 1) },

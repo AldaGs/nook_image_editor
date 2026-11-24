@@ -185,11 +185,11 @@ test('combining shapes makes a boolean layer with the bottom look; PBC gets a co
   assert.equal(ed.doc.get(a.id)!.parentId, board.id);
 });
 
-test('a mask group exports as its content in a precomp, matted by the mask right above it', () => {
+test('a mask group (top layer masks) exports as its content in a precomp, matted by the mask right above it', () => {
   const ed = new Editor(starterDoc());
   const board = ed.doc.children(ed.pageId)[0]!;
-  const m = createNode('ellipse', { parentId: board.id, order: 'y', name: 'Circle', transform: [1, 0, 0, 1, 0, 0], width: 100, height: 100 });
-  const pic = createNode('rect', { parentId: board.id, order: 'z', name: 'Photo', transform: [1, 0, 0, 1, 20, 20], width: 200, height: 200 });
+  const m = createNode('ellipse', { parentId: board.id, order: 'z', name: 'Circle', transform: [1, 0, 0, 1, 0, 0], width: 100, height: 100 });
+  const pic = createNode('rect', { parentId: board.id, order: 'y', name: 'Photo', transform: [1, 0, 0, 1, 20, 20], width: 200, height: 200 });
   ed.transact('Add', () => [{ t: 'add', node: m }, { t: 'add', node: pic }]);
   ed.select([m.id, pic.id]);
   ed.mask();

@@ -182,8 +182,9 @@ export function exportSvg(doc: Doc, boardId: string, opts: SvgOptions = {}): Svg
     switch (n.type) {
       case 'group':
         if (n.maskMode) {
-          // The bottom child as a luminance mask of its alpha: drawn white, so opaque shows (black for inverted).
-          const [m, ...content] = doc.children(n.id);
+          // The top child as a luminance mask of its alpha: drawn white, so opaque shows (black for inverted).
+          const kids = doc.children(n.id);
+          const m = kids.at(-1), content = kids.slice(0, -1);
           const mid = id('m');
           const box = { w: board!.width * 4, h: board!.height * 4 };
           const white = m ? layer({ ...m, visible: true }).replace(/fill="[^"]*"/g, 'fill="#fff"').replace(/stroke="[^"]*"/g, 'stroke="#fff"') : '';

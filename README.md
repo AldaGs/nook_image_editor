@@ -205,7 +205,7 @@ There are seven stages, and each one ships a deployable build. Every "done when"
 
 **Since the MVP:**
 
-- Masks: Mask in the selection bar turns the selection into a mask group; the bottom layer is an alpha mask for the rest (any layer: shape, text, photo, gradient for soft fades). Invert in the Design sheet. Exported to `.pbc` as a track matte (content in a precomp, matted by the mask above it) and to SVG as a mask.
+- Masks: Mask in the selection bar turns the selection into a mask group; the top layer is an alpha mask for the layers below it, as in Illustrator (any layer: shape, text, photo, gradient for soft fades). Invert in the Design sheet. Exported to `.pbc` as a track matte (content in a precomp, matted by the mask above it) and to SVG as a mask.
 - Adjust colors effect: exposure, brightness, contrast, saturation, temperature and hue, with PBC's own formulas, so it exports 1:1 as PBC's Exposure, Brightness/Contrast, Hue/Saturation and Photo Filter effects.
 - Booleans export to `.pbc` as compound paths (holes fully inside a shape still draw filled in PBC; see PBC-GAPS).
 

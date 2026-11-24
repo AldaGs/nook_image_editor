@@ -567,8 +567,8 @@ export class Editor {
   }
 
   /**
-   * Mask the selection: the bottom selected layer becomes an alpha mask for the
-   * ones above it, inside a new mask group (one undo step). Needs two layers.
+   * Mask the selection: the top selected layer becomes an alpha mask for the
+   * ones below it, inside a new mask group (one undo step). Needs two layers.
    */
   mask(): void {
     if (this.topmostSelected().length < 2) return;

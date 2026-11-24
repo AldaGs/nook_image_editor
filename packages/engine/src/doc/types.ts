@@ -128,7 +128,7 @@ export interface Node {
   subpaths?: VectorPath[]; // vector: more contours of the same shape (holes, separate pieces), from flatten
   fillRule?: 'nonzero' | 'evenodd'; // vector with subpaths: which overlaps are filled (default nonzero)
   booleanOp?: BooleanOp;  // boolean: how its children's shapes combine
-  /** Group: its bottom child is an alpha mask for the rest (inverted: shows them outside it). */
+  /** Group: its top child is an alpha mask for the rest (inverted: shows them outside it). */
   maskMode?: 'alpha' | 'inverted';
   clipContent?: boolean;  // frame
   text?: TextProps;       // text

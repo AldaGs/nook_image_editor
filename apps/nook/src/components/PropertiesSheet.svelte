@@ -135,7 +135,7 @@
     {#if n.type === 'group' && n.maskMode}
       <section>
         <h3>Mask</h3>
-        <p class="hint">The bottom layer is the mask: the layers above it show where it's opaque.</p>
+        <p class="hint">The top layer is the mask: the layers below it show where it's opaque.</p>
         <label class="field"><input class="check" type="checkbox" checked={n.maskMode === 'inverted'}
           onchange={e => edit('maskMode', e.currentTarget.checked ? 'inverted' : 'alpha')} />Invert (show outside the mask)</label>
       </section>

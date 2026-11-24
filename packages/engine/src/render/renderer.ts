@@ -540,12 +540,13 @@ export class Renderer {
   }
 
   /**
-   * A mask group: the content (every child but the bottom one) in a layer, then
-   * the bottom child drawn over it with DstIn (keep where the mask is opaque)
+   * A mask group: the content (every child but the top one) in a layer, then
+   * the top child drawn over it with DstIn (keep where the mask is opaque)
    * or DstOut (inverted). The mask is used even when hidden, like Figma's.
    */
   private drawMasked(c: Canvas, doc: Doc, n: Node): void {
-    const [mask, ...content] = doc.children(n.id);
+const kids = doc.children(n.id);
+    const mask = kids.at(-1), content = kids.slice(0, -1);
     c.saveLayer();
     content.forEach(k => this.drawNode(c, doc, k));
     if (mask) {
