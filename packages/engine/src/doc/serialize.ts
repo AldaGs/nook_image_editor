@@ -23,6 +23,15 @@ export function fromFile(file: unknown): Doc {
   return doc;
 }
 
+/** The picture files a document uses (asset ids, each once). */
+export function usedAssets(doc: Doc): string[] {
+  const ids = new Set<string>();
+  for (const n of doc.nodes.values()) {
+    for (const p of [...n.fills, ...n.strokes.map(s => s.paint)]) if (p.kind === 'image') ids.add(p.assetId);
+  }
+  return [...ids];
+}
+
 /** A new document: one page with three IG-post boards, each with a shape. */
 export function starterDoc(): Doc {
   const doc = new Doc();

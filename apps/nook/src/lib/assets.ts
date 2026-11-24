@@ -34,6 +34,13 @@ export async function storeImage(file: Blob): Promise<StoredImage> {
   return { assetId, width, height };
 }
 
+/** Keep picture bytes that arrived in a .nook file under the id they were saved with. */
+export async function putAsset(id: string, bytes: Uint8Array): Promise<void> {
+  const copy = bytes.slice().buffer;
+  memory.set(id, copy);
+  if (!(await readFile(`assets/${id}`))) await writeFile(`assets/${id}`, copy);
+}
+
 /** An image file by id, for the renderer. */
 export async function loadAsset(id: string): Promise<ArrayBuffer | null> {
   const hit = memory.get(id);

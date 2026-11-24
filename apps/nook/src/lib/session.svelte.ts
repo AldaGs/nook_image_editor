@@ -1,7 +1,7 @@
 // The editing session: one Editor, its reactive state for Svelte, and autosave
 // to the device (OPFS). The document survives reloads and works offline.
 
-import { Editor, fromFile, starterDoc, toFile, type Engine, type EditorState, type RGBA } from '@nook/engine';
+import { Editor, fromFile, starterDoc, toFile, type Doc, type Engine, type EditorState, type RGBA } from '@nook/engine';
 import { readFile, writeFile } from '@nook/storage';
 
 const DOC_PATH = 'docs/current/doc.json';
@@ -51,6 +51,14 @@ export async function loadSession(): Promise<void> {
   }
   lastSaved = editor.doc.version;
   ui.loaded = true;
+}
+
+/** Replace the document (a .nook file was opened) and save it straight away. */
+export async function openDocument(doc: Doc): Promise<void> {
+  editor.endTextEdit();
+  editor.load(doc);
+  clearTimeout(timer);
+  await save();
 }
 
 // Save right away when the app goes to the background (phones may kill it there).

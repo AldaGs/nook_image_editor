@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Editor } from './editor.ts';
 import { worldCorners } from './bounds.ts';
-import { starterDoc, toFile, fromFile } from '../doc/serialize.ts';
+import { starterDoc, toFile, fromFile, usedAssets } from '../doc/serialize.ts';
 import { createNode, FRAME_PRESETS } from '../doc/factory.ts';
 import { rotation, multiply, translation } from '../geom/affine.ts';
 import { linear, type Node } from '../doc/types.ts';
@@ -257,4 +257,13 @@ test('a picture fits inside the board it lands on, centred; on the page it keeps
   const b = ed.addImage({ assetId: 'def', width: 400, height: 300 }, 'Loose', { x: -5000, y: 0 });
   assert.equal(b.parentId, ed.pageId);
   assert.deepEqual([b.width, b.height, b.transform[4], b.transform[5]], [400, 300, -5200, -150]);
+});
+
+test('usedAssets lists each picture a document uses once, fills and strokes alike', () => {
+  const ed = new Editor(starterDoc());
+  assert.deepEqual(usedAssets(ed.doc), []);
+  const a = ed.addImage({ assetId: 'a1', width: 10, height: 10 }, 'A', { x: 0, y: 0 });
+  ed.addImage({ assetId: 'a1', width: 10, height: 10 }, 'A again', { x: 0, y: 0 });
+  ed.setProp([a.id], 'strokes', [{ paint: { kind: 'image', assetId: 'b2', width: 1, height: 1, scaleMode: 'fill', opacity: 1, blendMode: 'normal', visible: true }, width: 2, align: 'center' }]);
+  assert.deepEqual(usedAssets(ed.doc).sort(), ['a1', 'b2']);
 });

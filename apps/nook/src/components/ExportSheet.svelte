@@ -6,7 +6,9 @@
   import Sheet from './Sheet.svelte';
   import { boardFiles, canEncodeWebp, fitsLimit, type ImageFormat } from '../lib/export';
   import { shareFiles } from '../lib/files';
-  import { editor } from '../lib/session.svelte';
+  import { openNook, saveNook } from '../lib/nookfile';
+  import { loadAsset, putAsset } from '../lib/assets';
+  import { editor, openDocument } from '../lib/session.svelte';
 
   let { engine, onClose, onExportPbc }: { engine: Engine | null; onClose: () => void; onExportPbc: () => void } = $props();
 
@@ -57,6 +59,34 @@
     }
   }
 
+  // ── .nook files ──────────────────────────────────────────────
+  let opener: HTMLInputElement;
+
+  async function saveFile() {
+    busy = true;
+    message = null;
+    try {
+      const day = new Date().toISOString().slice(0, 10);
+      await share([await saveNook(editor.doc, loadAsset, `Nook ${day}`)]);
+    } catch (e) {
+      message = e instanceof Error ? e.message : String(e);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function openFile(file: File | undefined) {
+    if (!file) return;
+    if (!confirm('Open this file in place of the current document? Save the current one first if you want to keep it.')) return;
+    try {
+      await openDocument(await openNook(file, putAsset));
+      engine?.zoomToFit();
+      onClose();
+    } catch (e) {
+      message = `Couldn't open "${file.name}": ${e instanceof Error ? e.message : String(e)}`;
+    }
+  }
+
   const count = $derived(picked.length);
   const first = $derived(picked[0]);
 </script>
@@ -99,6 +129,16 @@
     </button>
     <button type="button" class="secondary" onclick={onExportPbc}>PBC scene (.pbc)</button>
   </section>
+
+  <section>
+    <h3>Document</h3>
+    <div class="pair">
+      <button type="button" class="secondary" disabled={busy} onclick={saveFile}>Save .nook file</button>
+      <button type="button" class="secondary" onclick={() => opener.click()}>Open .nook file</button>
+    </div>
+    <!-- No accept filter: iOS greys out extensions it doesn't know. The file is checked when opened. -->
+    <input bind:this={opener} type="file" hidden onchange={e => { openFile(e.currentTarget.files?.[0]); e.currentTarget.value = ''; }} />
+  </section>
 </Sheet>
 
 <style>
@@ -134,4 +174,6 @@
   .primary:disabled { opacity: 0.4; }
   .secondary { border: 1px solid var(--border); background: none; }
   .message { margin: 4px 0; font-size: 13px; }
+  .pair { display: flex; gap: 8px; }
+  .pair button { flex: 1; }
 </style>

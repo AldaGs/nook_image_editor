@@ -88,6 +88,8 @@ export class Editor {
     if (!page) throw new Error('document has no page');
     this.pageId = page.id;
     this.selection = [];
+    this.textEdit = null;
+    this.gradientEdit = null;
     this.emit();
   }
 
