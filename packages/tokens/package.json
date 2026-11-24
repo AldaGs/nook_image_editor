@@ -1,0 +1,9 @@
+{
+  "name": "@nook/tokens",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts", "./tokens.css": "./src/tokens.css" },
+  "scripts": { "check": "tsc -p ." },
+  "dependencies": { "@fontsource/inter": "^5.3.0" },
+  "devDependencies": { "typescript": "^5.9.3" }
+}

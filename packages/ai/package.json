@@ -1,0 +1,8 @@
+{
+  "name": "@nook/ai",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "check": "tsc -p ." },
+  "devDependencies": { "typescript": "^5.9.3" }
+}

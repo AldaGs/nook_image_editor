@@ -1,0 +1,12 @@
+{
+  "name": "nook-workspace",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev": "pnpm --filter @nook/app dev",
+    "build": "pnpm -r --filter './packages/*' run check && pnpm --filter @nook/app build",
+    "test": "pnpm -r run test",
+    "check": "pnpm -r run check"
+  }
+}

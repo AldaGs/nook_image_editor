@@ -23,6 +23,23 @@ Nook is a browser-based, Figma-style design tool for motion designers that works
 - Free and open source, with no dark patterns.
 - AI is off by default, runs on the device and is optional.
 
+## Run it
+
+```bash
+pnpm install
+pnpm dev        # dev server, reachable from your phone on the same Wi-Fi (--host)
+pnpm test       # engine unit tests
+pnpm check      # type checks for every package and the app
+pnpm build      # production PWA build in apps/nook/dist
+```
+
+**Code map**
+
+- `apps/nook/src/components/`: one Svelte component per file (`Canvas`, `TopBar`, `StatusBar`).
+- `apps/nook/src/lib/`: app-side state and helpers (theme, the stage 0 demo scene).
+- `packages/engine/src/`: `camera/` (view math), `input/` (touch, wheel and trackpad gestures), `render/` (CanvasKit loader, renderer, frame loop), `doc/` (document types), `engine.ts` (wires them to one canvas).
+- `packages/ai`, `packages/storage`, `packages/tokens`: the AI switch and model loader, OPFS helpers, design tokens.
+
 ## MVP scope
 
 The MVP is done when you can design a 3-frame styleframe board and an Instagram post in Nook on your phone, export the board as a `.pbc` scene that opens in PBC with its layers intact, and share the post as a PNG straight to Instagram.

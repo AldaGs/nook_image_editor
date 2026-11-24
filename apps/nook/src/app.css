@@ -1,0 +1,21 @@
+/* Global layout: a full-screen app with no page scroll or browser gestures. */
+html, body, #app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.4 var(--font-ui);
+  overflow: hidden;
+  overscroll-behavior: none;      /* no pull-to-refresh while panning */
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}

@@ -1,0 +1,30 @@
+/* Design tokens. Light is the default; dark follows the system. */
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/600.css';
+
+:root {
+  --font-ui: 'Inter', system-ui, sans-serif;
+
+  --bg: #f4f4f5;          /* canvas surround */
+  --surface: #ffffff;     /* bars, sheets, panels */
+  --text: #18181b;
+  --text-muted: #71717a;
+  --border: #e4e4e7;
+  --accent: #6d4aff;
+
+  --radius: 10px;
+  --space: 8px;
+  --bar-height: 48px;
+  --touch-target: 44px;   /* minimum tap size (Apple HIG) */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1c1f;
+    --surface: #27272a;
+    --text: #fafafa;
+    --text-muted: #a1a1aa;
+    --border: #3f3f46;
+    --accent: #8b6dff;
+  }
+}
