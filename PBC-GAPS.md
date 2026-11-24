@@ -19,6 +19,7 @@ Updated: Nov 24, 2026 (Nook Stage 5).
 | Inner shadow | Left out of the export. | An `InnerShadow` effect (colour, offset, blur, spread), drawn inside the layer's alpha. |
 | Background blur | Left out of the export. | A blur of what is behind the layer, clipped to the layer's shape. Needs the backdrop, so it belongs in the compositor. |
 | Sticker outline | Left out of the export. | A solid border round the layer's alpha with round corners (dilate, blur, threshold), drawn under the layer. |
+| Grain and halftone | Left out of the export. | Two texture effects: hashed noise of a cell size mixed into the layer's colour, and dots on a turned grid sized by darkness. Both are a shader plus a blend with the layer's own pixels (SkSL in Nook). |
 | Drop shadow spread | Exported without the spread. | A `spread` value on `DropShadow` that grows (or, negative, shrinks) the alpha before blurring. |
 
 ## Paint

@@ -8,7 +8,7 @@
 import type { Canvas, CanvasKit, Image as SkImage, ImageFilter, Paint as SkPaint, Paragraph, Path as SkPath, SkPicture, Surface, TypefaceFontProvider } from 'canvaskit-wasm';
 import type { Camera } from '../camera/camera.ts';
 import type { Doc } from '../doc/document.ts';
-import type { BlendMode, Node, Outline, Paint, RGBA, Shadow, Stroke, TextProps } from '../doc/types.ts';
+import type { BlendMode, Grain, Halftone, Node, Outline, Paint, RGBA, Shadow, Stroke, TextProps } from '../doc/types.ts';
 import { apply, intersects, invert, multiply, type Affine, type Point, type Rect } from '../geom/affine.ts';
 import { worldBounds, worldCorners } from '../editor/bounds.ts';
 import type { Editor } from '../editor/editor.ts';
@@ -162,6 +162,8 @@ export class Renderer {
 
   destroy(): void {
     this.clearPictures();
+    this.sksl.forEach(e => e?.delete());
+    this.sksl.clear();
     this.images.forEach(i => i?.delete());
     this.images.clear();
     this.clear.delete();
@@ -217,6 +219,7 @@ export class Renderer {
     for (const e of fx) if (e.kind === 'dropShadow') this.withFilter(c, this.dropShadow(e), undefined, () => this.drawContent(c, doc, n, outline));
     this.drawContent(c, doc, n, outline);
     for (const e of fx) if (e.kind === 'innerShadow') this.withFilter(c, this.innerShadow(e), this.ck.BlendMode.SrcATop, () => this.drawContent(c, doc, n, outline));
+    for (const e of fx) if (e.kind === 'grain' || e.kind === 'halftone') this.drawTexture(c, e);
 
     if (isolate) c.restore();
     layerFilter?.delete();
@@ -537,6 +540,44 @@ export class Renderer {
     return this.ck.ImageFilter.MakeDropShadowOnly(e.x, e.y, e.blur / 2, e.blur / 2, this.color(e.color), this.spread(e.spread, null));
   }
 
+  private sksl = new Map<string, ReturnType<CanvasKit['RuntimeEffect']['Make']>>();
+  private effect(src: string, blender = false) {
+    if (!this.sksl.has(src)) {
+      const log = (err: string) => console.error('SkSL:', err);
+      this.sksl.set(src, blender ? this.ck.RuntimeEffect.MakeForBlender(src, log) : this.ck.RuntimeEffect.Make(src, log));
+    }
+    return this.sksl.get(src) ?? null;
+  }
+
+  /**
+   * Grain and halftone, over what the layer has drawn so far: a pattern shader
+   * in the layer's own space feeds a blender that reads the layer's pixels, so
+   * transparent areas stay transparent.
+   */
+  private drawTexture(c: Canvas, e: Grain | Halftone): void {
+    const [shaderSrc, blendSrc] = e.kind === 'grain' ? [GRAIN_SHADER, GRAIN_BLEND] : [HALFTONE_SHADER, HALFTONE_BLEND];
+    const shaderFx = this.effect(shaderSrc), blendFx = this.effect(blendSrc, true);
+    if (!shaderFx || !blendFx || e.size <= 0) return;
+    let shaderU: number[], blendU: number[];
+    if (e.kind === 'grain') {
+      shaderU = [e.size];
+      blendU = [e.amount];
+    } else {
+      this.fxUsed = true; // the dot edge is one device pixel wide
+      shaderU = [e.size, (e.angle * Math.PI) / 180, 1 / (e.size * this.fxScale)];
+      blendU = [];
+    }
+    const shader = shaderFx.makeShader(shaderU);
+    const blender = blendFx.makeBlender(blendU);
+    const paint = new this.ck.Paint();
+    paint.setShader(shader);
+    paint.setBlender(blender);
+    c.drawPaint(paint);
+    paint.delete();
+    shader.delete();
+    blender.delete();
+  }
+
   /**
    * Grow the alpha, blur it, then snap it back to a hard edge: a dilate alone
    * gives square corners, this gives the round ones a die-cut sticker has.
@@ -771,3 +812,42 @@ export function outlineEdge(sigma: number, devicePerUnit: number): [number, numb
   const k = Math.min(256, Math.max(1, 2.5 * sigma * devicePerUnit));
   return [k, 0.5 - 0.4 * k];
 }
+
+// ── SkSL for grain and halftone ──────────────────────────────────
+// The shaders draw a pattern in the layer's space; the blenders combine it with
+// the layer's own (premultiplied) pixels and keep its alpha.
+
+const GRAIN_SHADER = `
+uniform float size;
+half4 main(float2 p) {
+  float2 c = floor(p / size);
+  float n = fract(sin(dot(c, float2(12.9898, 78.233))) * 43758.5453);
+  return half4(half(n), 0, 0, 1);
+}`;
+
+const GRAIN_BLEND = `
+uniform float amount;
+half4 main(half4 src, half4 dst) {
+  half3 rgb = dst.rgb + (src.r - 0.5) * half(amount) * dst.a;
+  return half4(clamp(rgb, half3(0), half3(dst.a)), dst.a);
+}`;
+
+/** r: distance from the cell's centre (0–0.71), g: half the edge width, in cells. */
+const HALFTONE_SHADER = `
+uniform float size;
+uniform float angle;
+uniform float aa;
+half4 main(float2 p) {
+  float s = sin(angle), c = cos(angle);
+  float2 q = float2(c * p.x + s * p.y, c * p.y - s * p.x) / size;
+  return half4(half(length(fract(q) - 0.5)), half(aa), 0, 1);
+}`;
+
+/** Darker pixels get bigger dots (black fills the cell); dots keep the layer's colour. */
+const HALFTONE_BLEND = `
+half4 main(half4 src, half4 dst) {
+  if (dst.a <= 0) return dst;
+  half lum = dot(dst.rgb / dst.a, half3(0.299, 0.587, 0.114));
+  half r = sqrt(max(0, 1 - lum)) * 0.75;
+  return dst * (1 - smoothstep(r - src.g, r + src.g, src.r));
+}`;

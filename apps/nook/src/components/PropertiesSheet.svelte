@@ -25,7 +25,7 @@
   const painted = $derived(!!n && n.type !== 'group');
 
   const EFFECTS: [Effect['kind'], string][] = [
-    ['dropShadow', 'Drop shadow'], ['innerShadow', 'Inner shadow'], ['layerBlur', 'Layer blur'], ['backgroundBlur', 'Background blur'], ['outline', 'Sticker outline'],
+    ['dropShadow', 'Drop shadow'], ['innerShadow', 'Inner shadow'], ['layerBlur', 'Layer blur'], ['backgroundBlur', 'Background blur'], ['outline', 'Sticker outline'], ['grain', 'Grain'], ['halftone', 'Halftone'],
   ];
   const label = (m: string) => m.replace(/[A-Z]/g, c => ` ${c.toLowerCase()}`).replace(/^./, c => c.toUpperCase());
 
@@ -257,6 +257,16 @@
             {#if shadowPicker === i}
               <div class="full"><ColorPicker color={e.color} onchange={(color, done) => edit('effects', replace(n.effects, i, { ...e, color }), done)} /></div>
             {/if}
+          {:else if e.kind === 'grain'}
+            <label class="field">Amount<input type="number" inputmode="numeric" min="0" max="100" value={Math.round(e.amount * 100)}
+              onchange={ev => edit('effects', replace(n.effects, i, { ...e, amount: Math.min(1, num(ev.currentTarget.value, 0) / 100) }))} />%</label>
+            <label class="field">Size<input type="number" inputmode="decimal" min="0.5" step="0.5" value={e.size}
+              onchange={ev => edit('effects', replace(n.effects, i, { ...e, size: num(ev.currentTarget.value, 0.5) }))} /></label>
+          {:else if e.kind === 'halftone'}
+            <label class="field">Dots<input type="number" inputmode="decimal" min="2" value={e.size}
+              onchange={ev => edit('effects', replace(n.effects, i, { ...e, size: num(ev.currentTarget.value, 2) }))} /></label>
+            <label class="field">Angle<input type="number" inputmode="decimal" value={e.angle}
+              onchange={ev => edit('effects', replace(n.effects, i, { ...e, angle: num(ev.currentTarget.value) }))} /></label>
           {:else if e.kind === 'outline'}
             <Swatch color={e.color} label="Outline colour" size={32} open={shadowPicker === i} onclick={() => (shadowPicker = shadowPicker === i ? null : i)} />
             <label class="field">Width<input type="number" inputmode="decimal" min="0" value={e.width}

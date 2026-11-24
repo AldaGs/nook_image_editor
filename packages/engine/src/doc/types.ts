@@ -53,7 +53,11 @@ export interface Shadow { kind: 'dropShadow' | 'innerShadow'; visible: boolean; 
 export interface Blur { kind: 'layerBlur' | 'backgroundBlur'; visible: boolean; radius: number }
 /** A solid, round-cornered border around the layer's alpha: the sticker cut line. */
 export interface Outline { kind: 'outline'; visible: boolean; color: RGBA; width: number }
-export type Effect = Shadow | Blur | Outline;
+/** Film grain: noise of `size` px cells, `amount` 0–1. */
+export interface Grain { kind: 'grain'; visible: boolean; amount: number; size: number }
+/** Halftone: the layer redrawn as dots on a `size` px grid turned by `angle` degrees; darker means bigger dots. */
+export interface Halftone { kind: 'halftone'; visible: boolean; size: number; angle: number }
+export type Effect = Shadow | Blur | Outline | Grain | Halftone;
 
 /**
  * Text content and style. `sizing` says which way the box follows the text:
@@ -118,6 +122,8 @@ export const linear = (a: RGBA, b: RGBA): GradientPaint => ({
 /** Defaults for a newly added effect, Figma-like. */
 export function newEffect(kind: Effect['kind']): Effect {
   if (kind === 'layerBlur' || kind === 'backgroundBlur') return { kind, visible: true, radius: 8 };
+  if (kind === 'grain') return { kind, visible: true, amount: 0.3, size: 2 };
+  if (kind === 'halftone') return { kind, visible: true, size: 12, angle: 45 };
   if (kind === 'outline') return { kind, visible: true, color: { r: 1, g: 1, b: 1, a: 1 }, width: 16 };
   return { kind, visible: true, color: { r: 0, g: 0, b: 0, a: 0.25 }, x: 0, y: 4, blur: 8, spread: 0 };
 }
