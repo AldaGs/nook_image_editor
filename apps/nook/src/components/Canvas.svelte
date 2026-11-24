@@ -10,7 +10,7 @@
   import FrameLabels from './FrameLabels.svelte';
   import ViewInfo from './ViewInfo.svelte';
 
-  let { engine = $bindable(null) }: { engine?: Engine | null } = $props();
+  let { engine = $bindable(null), onDesign }: { engine?: Engine | null; onDesign: () => void } = $props();
 
   let canvas: HTMLCanvasElement;
   let error = $state<string | null>(null);
@@ -52,7 +52,7 @@
     <FrameLabels {labels} />
   </div>
   <ViewInfo {zoom} {fps} />
-  <ActionBar />
+  <ActionBar {onDesign} />
   {#if error}
     <p class="status">{error}</p>
   {:else if !engine}

@@ -8,6 +8,7 @@
   import Canvas from './components/Canvas.svelte';
   import LayersPanel from './components/LayersPanel.svelte';
   import PresetSheet from './components/PresetSheet.svelte';
+  import PropertiesSheet from './components/PropertiesSheet.svelte';
   import Toolbar from './components/Toolbar.svelte';
   import TopBar from './components/TopBar.svelte';
   import { editor, loadSession, ui } from './lib/session.svelte';
@@ -17,6 +18,7 @@
   let engine = $state<Engine | null>(null);
   let layersOpen = $state(false);
   let presetsOpen = $state(false);
+  let designOpen = $state(false);
   let notice = $state<string | null>(null);
 
   // Zoom to fit once both the saved document and the canvas are ready.
@@ -51,13 +53,16 @@
 <main>
   <TopBar {layersOpen} onToggleLayers={() => (layersOpen = !layersOpen)} onFit={fit} onExport={exportToPbc} />
   <div class="stage">
-    <Canvas bind:engine />
+    <Canvas bind:engine onDesign={() => (designOpen = true)} />
     {#if layersOpen}<LayersPanel onClose={() => (layersOpen = false)} />{/if}
   </div>
   <Toolbar onAddBoard={() => (presetsOpen = true)} />
 </main>
 
 {#if presetsOpen}<PresetSheet onPick={addBoard} onClose={() => (presetsOpen = false)} />{/if}
+{#if designOpen}
+  <PropertiesSheet onClose={() => (designOpen = false)} onEditGradient={() => (designOpen = false)} />
+{/if}
 
 {#if notice || ui.error}
   <button type="button" class="toast" onclick={() => { notice = null; ui.error = null; }}>{ui.error ?? notice}</button>

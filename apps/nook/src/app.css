@@ -19,3 +19,18 @@ button {
   font: inherit;
   color: inherit;
 }
+
+/* Form controls in sheets. 16px text stops iOS zooming in on focus. */
+input:not([type='color']):not([type='range']), select {
+  font: inherit;
+  font-size: 16px;
+  color: inherit;
+  min-height: 36px;
+  padding: 0 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+input[type='number'] { padding: 0 4px; text-align: right; }
+input[type='range'] { accent-color: var(--accent); min-height: var(--touch-target); }

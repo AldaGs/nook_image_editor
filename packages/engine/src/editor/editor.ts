@@ -112,6 +112,19 @@ export class Editor {
     this.transact(label, () => ids.map(id => ({ t: 'set', id, prop, value }) as Op));
   }
 
+  /**
+   * A change the user is still refining (a slider drag, picking a colour):
+   * each call replaces the previous one, and `commitEdit()` makes the whole
+   * gesture one undo step.
+   */
+  preview(ids: string[], prop: NodeProp, value: unknown, label = 'Edit'): void {
+    this.history.begin(label);
+    this.history.rewind();
+    this.setProp(ids, prop, value, label);
+  }
+
+  commitEdit(): void { this.history.commit(); }
+
   rename(id: string, name: string): void {
     if (name.trim()) this.setProp([id], 'name', name.trim(), 'Rename');
   }

@@ -3,6 +3,8 @@
   import IconButton from './IconButton.svelte';
   import { editor, ui } from '../lib/session.svelte';
 
+  let { onDesign }: { onDesign: () => void } = $props();
+
   const selected = $derived.by(() => { ui.state.version; return editor.selectedNodes(); });
   const one = $derived(selected.length === 1 ? selected[0] : null);
   const hasGroup = $derived(selected.some(n => n.type === 'group'));
@@ -11,6 +13,7 @@
 {#if selected.length}
   <div class="bar" role="toolbar" aria-label="Selection">
     <span class="count">{one ? one.name : `${selected.length} selected`}</span>
+    <IconButton icon="sliders" label="Design" onclick={onDesign} />
     <IconButton icon="arrowUp" label="Bring forward (])" disabled={!one} onclick={() => one && editor.reorder(one.id, 1)} />
     <IconButton icon="arrowDown" label="Send backward ([)" disabled={!one} onclick={() => one && editor.reorder(one.id, -1)} />
     <IconButton icon="group" label="Group (Ctrl+G)" onclick={() => editor.group()} />

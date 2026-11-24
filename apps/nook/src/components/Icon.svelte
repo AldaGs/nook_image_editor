@@ -16,6 +16,9 @@
   import lock from 'lucide-static/icons/lock.svg?raw';
   import lockOpen from 'lucide-static/icons/lock-open.svg?raw';
   import maximize from 'lucide-static/icons/maximize.svg?raw';
+  import minus from 'lucide-static/icons/minus.svg?raw';
+  import plus from 'lucide-static/icons/plus.svg?raw';
+  import sliders from 'lucide-static/icons/sliders-horizontal.svg?raw';
   import pointer from 'lucide-static/icons/mouse-pointer-2.svg?raw';
   import redo from 'lucide-static/icons/redo-2.svg?raw';
   import share from 'lucide-static/icons/share.svg?raw';
@@ -27,7 +30,7 @@
 
   const ICONS = {
     arrowDown, arrowUp, chevronDown, chevronRight, circle, eye, eyeOff, frame, group, layers,
-    layoutTemplate, listChecks, lock, lockOpen, maximize, pointer, redo, share, square, trash,
+    layoutTemplate, listChecks, lock, lockOpen, maximize, minus, plus, pointer, redo, share, sliders, square, trash,
     undo, ungroup, x,
   };
   export type IconName = keyof typeof ICONS;

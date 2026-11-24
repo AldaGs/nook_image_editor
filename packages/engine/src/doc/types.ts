@@ -11,10 +11,12 @@ export type NodeType =
 /** sRGB colour, 0–1 floats, straight (not premultiplied) alpha. */
 export interface RGBA { r: number; g: number; b: number; a: number }
 
-export type BlendMode =
-  | 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten'
-  | 'colorDodge' | 'colorBurn' | 'hardLight' | 'softLight' | 'difference'
-  | 'exclusion' | 'hue' | 'saturation' | 'color' | 'luminosity';
+export const BLEND_MODES = [
+  'normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten',
+  'colorDodge', 'colorBurn', 'hardLight', 'softLight', 'difference',
+  'exclusion', 'hue', 'saturation', 'color', 'luminosity',
+] as const;
+export type BlendMode = (typeof BLEND_MODES)[number];
 
 interface PaintBase { opacity: number; blendMode: BlendMode; visible: boolean }
 export interface SolidPaint extends PaintBase { kind: 'solid'; color: RGBA }
