@@ -57,11 +57,31 @@ test('gradients, strokes, blend modes and effects map onto PBC fields', () => {
   assert.equal(layer.fill.Const.r, 0.5, 'the flat fallback is the average colour');
   assert.equal(layer.stroke.width.Const, 4);
   assert.equal(layer.blend, 'ColorDodge');
-  assert.deepEqual(layer.effects.map((e: { kind: object }) => Object.keys(e.kind)[0]), ['DropShadow', 'GaussianBlur']);
+  assert.deepEqual(layer.effects.map((e: { kind: object }) => Object.keys(e.kind)[0]), ['DropShadow', 'GaussianBlur', 'InnerShadow']);
   assert.equal(layer.effects[0].kind.DropShadow.radius.Const, 4, 'blur 8 is sigma 4');
   assert.equal(layer.effects[0].kind.DropShadow.opacity.Const, 0.25);
-  assert.ok(report.some(r => r.includes('inner shadow')));
-  assert.ok(report.some(r => r.includes('centred on the outline')));
+  assert.equal(layer.effects[0].kind.DropShadow.spread.Const, 0);
+  assert.equal(layer.stroke.style.align, 'Inside');
+  assert.ok(!report.some(r => r.includes('inner shadow') || r.includes('centred')));
+});
+
+test('gradient strokes, and paths with holes as one Vector with contours', () => {
+  const ed = new Editor(starterDoc());
+  const board = ed.doc.children(ed.pageId)[0]!;
+  const sq = (x: number, s: number) => ({ closed: true, anchors: [[x, x], [x + s, x], [x + s, x + s], [x, x + s]].map(([px, py]) => ({ p: { x: px!, y: py! }, in: { x: 0, y: 0 }, out: { x: 0, y: 0 } })) });
+  const v = createNode('vector', { parentId: board.id, order: 'y', name: 'Ring', width: 100, height: 100, path: sq(0, 100), subpaths: [sq(25, 50)], fillRule: 'evenodd' });
+  v.strokes = [{ paint: linear({ r: 1, g: 0, b: 0, a: 1 }, { r: 0, g: 0, b: 1, a: 1 }), width: 3, align: 'center' }];
+  ed.transact('Add', () => [{ t: 'add', node: v }]);
+  const { text, report } = exportPbc(ed.doc, ed.pageId);
+  const layer = JSON.parse(text).project.comps['1'].root.children.at(-1);
+  const path = layer.shape.Vector.path;
+  assert.equal(path.anchors.length, 4);
+  assert.equal(path.contours.length, 1);
+  assert.deepEqual(path.contours[0].anchors[0].point.Const, { x: 25, y: 25 });
+  assert.equal(path.even_odd, true);
+  assert.equal(layer.stroke_gradient.kind, 'Linear');
+  assert.equal(layer.stroke.style, undefined, 'centred strokes keep the default style');
+  assert.ok(!report.some(r => r.includes('Ring')));
 });
 
 test('text is centred on its laid-out block, as PBC draws it', () => {

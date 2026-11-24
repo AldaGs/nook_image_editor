@@ -12,7 +12,7 @@
 
 import {
   affine, contoursOf, estimateText, localBox, paintColor, WARM, COOL,
-  type Doc, type Effect, type Node, type Point, type RGBA, type TextProps,
+  type Doc, type Effect, type Node, type Paint, type Point, type RGBA, type TextProps,
 } from '@nook/engine';
 
 export interface PbcExport {
@@ -122,19 +122,13 @@ function toLayer(doc: Doc, n: Node, ctx: Ctx): unknown {
       // Path points are in the node's own space, so the layer sits at its origin.
       const v = (p: { x: number; y: number }) => k({ x: round(p.x), y: round(p.y) });
       const o = affine.apply(n.transform, { x: 0, y: 0 });
-      const vector = (path: ReturnType<typeof contoursOf>[number]) =>
-        ({ Vector: { path: { anchors: path.anchors.map(a => ({ point: v(a.p), in_tan: v(a.in), out_tan: v(a.out) })), closed: path.closed } } });
+      const path = (p: ReturnType<typeof contoursOf>[number]) =>
+        ({ anchors: p.anchors.map(a => ({ point: v(a.p), in_tan: v(a.in), out_tan: v(a.out) })), closed: p.closed });
       const [first, ...rest] = contoursOf(n);
-      const look = { ...paint(n, { x: 0, y: 0 }, report), stroke: stroke(n, report) };
       if (!first) return { ...layer, hidden: true };
-      if (!rest.length) return { ...layer, transform: transform(o.x, o.y, angle, n.opacity), shape: vector(first), ...look };
-      // PBC paths have one contour: each becomes its own layer in a group (holes fill in).
-      report.push(`"${n.name}" has ${rest.length + 1} contours; PBC paths have one each, so they're separate layers in a group and any holes are filled.`);
-      return {
-        ...layer,
-        transform: transform(o.x, o.y, angle, n.opacity),
-        children: [first, ...rest].map((p, i) => ({ ...baseLayer(ctx.id(), `${n.name} ${i + 1}`), transform: transform(0, 0, 0, 1), shape: vector(p), ...look })),
-      };
+      // Holes and extra pieces ride on the first contour, as PBC stores them.
+      const vector = { ...path(first), ...(rest.length ? { contours: rest.map(path) } : {}), ...(rest.length && n.fillRule === 'evenodd' ? { even_odd: true } : {}) };
+      return { ...layer, transform: transform(o.x, o.y, angle, n.opacity), shape: { Vector: { path: vector } }, ...paint(n, { x: 0, y: 0 }, report), ...strokeOf(n, { x: 0, y: 0 }, report) };
     }
     case 'rect':
     case 'ellipse':
@@ -175,7 +169,7 @@ function toLayer(doc: Doc, n: Node, ctx: Ctx): unknown {
         transform: transform(c.x, c.y, angle, n.opacity),
         shape,
         ...paint(n, centre, report),
-        stroke: stroke(n, report),
+        ...strokeOf(n, centre, report),
       };
     }
     case 'boolean': {
@@ -187,7 +181,7 @@ function toLayer(doc: Doc, n: Node, ctx: Ctx): unknown {
         transform: transform(n.transform[4], n.transform[5], angle, n.opacity),
         compound: pascal(n.booleanOp ?? 'union'),
         ...paint(sized, { x: -box.x, y: -box.y }, report),
-        stroke: stroke(n, report),
+        ...strokeOf(sized, { x: -box.x, y: -box.y }, report),
         children: doc.children(n.id).map(c => toLayer(doc, c, ctx)),
       };
     }
@@ -234,7 +228,7 @@ function frameBackground(n: Node, ctx: Ctx): unknown[] {
     transform: transform(centre.x, centre.y, 0, 1),
     shape: { Rect: { size: k({ x: n.width, y: n.height }), radius: k(n.cornerRadius ?? 0) } },
     ...paint(n, centre, ctx.sh.report),
-    stroke: stroke(n, ctx.sh.report),
+    ...strokeOf(n, centre, ctx.sh.report),
   }];
 }
 
@@ -322,27 +316,33 @@ function paint(n: Node, centre: Point, report: string[]): { fill: unknown; gradi
     report.push(`"${n.name}": image fills aren't in the PBC export yet (Stage 4); it was drawn as a gray box.`);
     return { fill };
   }
+  return { fill, gradient: gradientOf(n, top, centre) };
+}
+
+/** A Nook gradient (unit-box points) as PBC's, in the layer's own space around `centre`. */
+function gradientOf(n: Node, g: Extract<Paint, { kind: 'linear' | 'radial' }>, centre: Point): unknown {
   const local = (u: Point) => ({ x: round(u.x * n.width - centre.x), y: round(u.y * n.height - centre.y) });
   return {
-    fill,
-    gradient: {
-      kind: top.kind === 'linear' ? 'Linear' : 'Radial',
-      start: k(local(top.from)),
-      end: k(local(top.to)),
-      stops: top.stops.map(s => ({ offset: s.offset, color: k(withOpacity(s.color, top.opacity)) })),
-    },
+    kind: g.kind === 'linear' ? 'Linear' : 'Radial',
+    start: k(local(g.from)),
+    end: k(local(g.to)),
+    stops: g.stops.map(s => ({ offset: s.offset, color: k(withOpacity(s.color, g.opacity)) })),
   };
 }
 
-/** PBC has one centred, solid stroke per layer. */
-function stroke(n: Node, report: string[]): unknown {
+/**
+ * PBC has one stroke per layer: the top visible one, with its alignment
+ * (inside/outside) and, for gradients, `stroke_gradient` over a flat colour.
+ */
+function strokeOf(n: Node, centre: Point, report: string[]): { stroke: unknown; stroke_gradient?: unknown } {
   const visible = n.strokes.filter(s => s.paint.visible && s.width > 0);
   const s = visible[visible.length - 1];
-  if (!s) return null;
+  if (!s) return { stroke: null };
   if (visible.length > 1) report.push(`"${n.name}" has ${visible.length} strokes; only the top one was exported.`);
-  if (s.paint.kind !== 'solid') report.push(`"${n.name}": ${s.paint.kind === 'image' ? 'image' : 'gradient'} strokes aren't in PBC; it was flattened to one colour.`);
-  if (s.align !== 'center') report.push(`"${n.name}": its stroke is ${s.align} in Nook but centred on the outline in PBC.`);
-  return { color: k(withOpacity(paintColor(s.paint), s.paint.opacity)), width: k(s.width) };
+  if (s.paint.kind === 'image') report.push(`"${n.name}": picture strokes aren't in PBC; it was drawn as one colour.`);
+  const style = s.align === 'center' ? {} : { style: { cap: 'Butt', join: 'Miter', miter_limit: 4, align: s.align === 'inside' ? 'Inside' : 'Outside' } };
+  const stroke = { color: k(withOpacity(paintColor(s.paint), s.paint.opacity)), width: k(s.width), ...style };
+  return s.paint.kind === 'linear' || s.paint.kind === 'radial' ? { stroke, stroke_gradient: gradientOf(n, s.paint, centre) } : { stroke };
 }
 
 const EFFECT_NAMES: Record<Effect['kind'], string> = {
@@ -355,12 +355,9 @@ const EFFECT_NAMES: Record<Effect['kind'], string> = {
  */
 function effects(n: Node, report: string[]): unknown[] {
   return n.effects.flatMap((e): unknown[] => {
-    if (e.kind === 'dropShadow') {
-      if (e.spread && e.visible) report.push(`"${n.name}": drop shadow spread isn't in PBC; the shadow was exported without it.`);
-      return [{
-        enabled: e.visible,
-        kind: { DropShadow: { color: k({ ...e.color, a: 1 }), offset_x: k(e.x), offset_y: k(e.y), radius: k(e.blur / 2), opacity: k(e.color.a) } },
-      }];
+    if (e.kind === 'dropShadow' || e.kind === 'innerShadow') {
+      const params = { color: k({ ...e.color, a: 1 }), offset_x: k(e.x), offset_y: k(e.y), radius: k(e.blur / 2), opacity: k(e.color.a), spread: k(e.spread) };
+      return [{ enabled: e.visible, kind: e.kind === 'dropShadow' ? { DropShadow: params } : { InnerShadow: params } }];
     }
     if (e.kind === 'layerBlur') return [{ enabled: e.visible, kind: { GaussianBlur: { radius: k(e.radius / 2) } } }];
     if (e.kind === 'adjust') {

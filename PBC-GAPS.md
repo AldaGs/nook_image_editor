@@ -4,24 +4,20 @@ Things Nook can design that a `.pbc` can't carry or PBC can't draw yet. PBC impl
 
 Only items marked **Important** affect whether a board looks the same in PBC in everyday use. The rest can wait until PBC gets to them.
 
-Updated: Nov 24, 2026 (masks and colour correction).
+Updated: Nov 24, 2026. PBC also gained, and Nook now exports: paths with several contours and an even-odd fill (`89a2783`), drop shadow spread (`e859533`), stroke alignment (`f1a6227`), inner shadow (`29792df`) and gradient strokes (`46ebaa9`).
 
 ## Important
 
-| Gap | What happens now | What PBC needs |
-| --- | --- | --- |
-| **Variable-font weights.** With a variable font installed (for example `Montserrat-VariableFont_wght.ttf`), PBC draws weights 600, 800 and 900 all as the heaviest cut. 300 and 400 are right. | Heavier text is bolder and wider in PBC than in Nook, so it can wrap onto extra lines. Nook writes the right weight. | A bug in PBC's text shaping (`crates/core/src/text.rs`). The variable `wght` axis should be set to the requested weight, as `node.rs` already says it should. Likely suspects are fontique picking a bold instance or applying synthetic emboldening. |
-| **Holes in compound paths.** A boolean whose result has a hole fully inside it (a square with a circle subtracted from its middle), and Exclude's overlap, draw filled in PBC. Edge bites (a circle cutting the square's edge) are right. | Nook exports booleans as PBC compound paths (`compound`), which is correct data; PBC draws the merged result's inner contours filled. | In `crates/core/src/pathfinder.rs` / the compound render item: draw the combined path with an even-odd fill (or make `path_sub`'s hole contours wind the other way). |
+None right now. Fixed in PBC on Nov 24, 2026: variable-font weights (`56a3ace`) and holes in compound paths (`10c581d`).
+
 
 ## Effects
 
 | Gap | What happens now | What PBC needs |
 | --- | --- | --- |
-| Inner shadow | Left out of the export. | An `InnerShadow` effect (colour, offset, blur, spread), drawn inside the layer's alpha. |
 | Background blur | Left out of the export. | A blur of what is behind the layer, clipped to the layer's shape. Needs the backdrop, so it belongs in the compositor. |
 | Sticker outline | Left out of the export. | A solid border round the layer's alpha with round corners (dilate, blur, threshold), drawn under the layer. |
 | Grain and halftone | Left out of the export. | Two texture effects: hashed noise of a cell size mixed into the layer's colour, and dots on a turned grid sized by darkness. Both are a shader plus a blend with the layer's own pixels (SkSL in Nook). |
-| Drop shadow spread | Exported without the spread. | A `spread` value on `DropShadow` that grows (or, negative, shrinks) the alpha before blurring. |
 
 ## Paint
 
@@ -29,8 +25,6 @@ Updated: Nov 24, 2026 (masks and colour correction).
 | --- | --- | --- |
 | More than one fill on a layer | Only the top fill is exported. | A stack of fills per layer, or Nook exports each extra fill as its own layer. |
 | More than one stroke on a layer | Only the top stroke is exported. | A stack of strokes per layer. |
-| Strokes inside or outside the outline | Exported centred on the outline. | A stroke alignment setting: inside clips to the shape, outside clips it out, as Nook draws them. |
-| Gradient strokes | Flattened to the gradient's average colour. | A `gradient` on `Stroke`, like the one on fills. |
 | A fill's own blend mode (separate from the layer's) | Drawn as Normal. | A blend mode per paint. |
 | Gradient fills: editing in PBC | PBC draws them (commit `14eb946`, "Gradient fills") but can't edit them. | Gradient controls in PBC's properties panel: kind, the two end points and the stops. |
 | Gradients on per-character animated text | PBC draws the solid fallback fill. | Map the ramp through each glyph piece's own transform (`crates/core/src/eval.rs`, the animated-text branch). |
@@ -41,7 +35,6 @@ Updated: Nov 24, 2026 (masks and colour correction).
 | --- | --- | --- |
 | A board's own strokes and effects, or a rotated board | Not exported, because a comp has no strokes, effects or rotation. | Probably nothing: in Nook, keep that styling on a layer inside the board. |
 
-| Paths with several contours (holes, separate pieces) | Each contour is its own Vector layer in a group; holes fill in. | Several contours per `VectorPath`, or a list of paths per Vector shape, with a fill rule (non-zero or even-odd). |
 | Rounded corners on a nested board's clip | The precomp's mask is square. | Nothing new: Nook could write the mask as a rounded Vector path. To do on the Nook side. |
 | Image fills | Drawn as a gray box. | PBC footage is a file path (`Asset.path`, used as given). A `.pbc` that travels with its pictures needs asset paths resolved beside the project file; then Nook can export a folder or zip. |
 | Motion notes | Written to the layer's `tags` as `note: …` (the root layer's for a board). | A notes field PBC shows, if wanted. |
