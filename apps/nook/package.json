@@ -1,0 +1,31 @@
+{
+  "name": "@nook/app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "check": "svelte-check --tsconfig ./tsconfig.json"
+  },
+  "dependencies": {
+    "@nook/ai": "workspace:*",
+    "@nook/engine": "workspace:*",
+    "@nook/scene-export": "workspace:*",
+    "@nook/storage": "workspace:*",
+    "@nook/tokens": "workspace:*",
+    "canvaskit-wasm": "0.42.0",
+    "lucide-static": "^0.460.0"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.2",
+    "@tsconfig/svelte": "^5.0.9",
+    "svelte": "^5.59.1",
+    "svelte-check": "^4.7.8",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.8",
+    "vite-plugin-pwa": "^2.0.0",
+    "workbox-build": "^7.4.1",
+    "workbox-window": "^7.4.1"
+  }
+}
