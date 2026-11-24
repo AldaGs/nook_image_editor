@@ -7,7 +7,7 @@ import { apply, invert, multiply, rotation, translation, type Affine, type Point
 import type { Node } from '../../doc/types.ts';
 import { localBox, worldBounds } from '../bounds.ts';
 import { snapBox } from '../snap.ts';
-import { handleAt, handlesFor, selectionBox, type Handle, type SelectionBox } from '../handles.ts';
+import { gradientHandles, handleAt, handlesFor, selectionBox, type Handle, type SelectionBox } from '../handles.ts';
 import { hitStack, marqueeHits } from '../hit.ts';
 import { dragThreshold, hitRadius, type PointerInfo, type Tool, type ToolContext } from './tool.ts';
 
@@ -17,6 +17,7 @@ type Mode =
   | { kind: 'move'; nodes: Node[]; start: Map<string, Affine>; box: Rect | null; others: Rect[] }
   | { kind: 'resize'; sel: SelectionBox; handle: Handle }
   | { kind: 'rotate'; node: Node; t0: Affine; centre: Point; a0: number }
+  | { kind: 'gradient'; end: 'from' | 'to' }
   | { kind: 'marquee'; base: string[] }
   | { kind: 'pan'; last: Point };
 
@@ -34,6 +35,23 @@ export class SelectTool implements Tool {
   down(p: PointerInfo): void {
     const { editor, camera } = this.ctx;
     this.downAt = p;
+
+    // While a gradient is being edited, its end points are the only handles.
+    const gh = gradientHandles(editor, camera);
+    if (gh) {
+      const d = (q: Point) => Math.hypot(q.x - p.screen.x, q.y - p.screen.y);
+      const end = d(gh.from) <= d(gh.to) ? 'from' : 'to';
+      if (d(gh[end]) <= hitRadius(p)) {
+        editor.history.begin('Edit gradient');
+        this.mode = { kind: 'gradient', end };
+        return;
+      }
+      // A press anywhere else just puts the normal handles back.
+      editor.editGradient(null);
+      this.mode = { kind: 'idle' };
+      this.downAt = null;
+      return;
+    }
 
     // Handles win over everything under them.
     const handle = handleAt(handlesFor(editor, camera), p.screen, hitRadius(p));
@@ -87,6 +105,18 @@ export class SelectTool implements Tool {
         editor.history.rewind();
         this.rotate(mode, p);
         break;
+      case 'gradient': {
+        const t = editor.gradientEdit;
+        const g = t && editor.gradientPaint(t);
+        const n = t && editor.doc.get(t.nodeId);
+        if (!t || !g || !n) break;
+        editor.history.rewind();
+        // Pointer into the node's unit box.
+        const q = apply(invert(editor.doc.worldTransform(n.id)), p.world);
+        const u = { x: q.x / (n.width || 1), y: q.y / (n.height || 1) };
+        editor.transact('Edit gradient', () => editor.setGradientOps(t, { ...g, [mode.end]: u }));
+        break;
+      }
       case 'marquee': {
         const r = { x: Math.min(start.world.x, p.world.x), y: Math.min(start.world.y, p.world.y), width: Math.abs(dx), height: Math.abs(dy) };
         editor.marquee = r;
@@ -107,7 +137,7 @@ export class SelectTool implements Tool {
     const m = this.mode;
     if (m.kind === 'press') this.tap(m.stack, p);
     if (m.kind === 'move') { editor.guides = []; editor.dropAt(m.nodes, p.world); }
-    if (m.kind === 'move' || m.kind === 'resize' || m.kind === 'rotate') editor.history.commit();
+    if (m.kind === 'move' || m.kind === 'resize' || m.kind === 'rotate' || m.kind === 'gradient') editor.history.commit();
     if (m.kind === 'marquee') { editor.marquee = null; editor.emit(); }
     this.mode = { kind: 'idle' };
     this.downAt = null;
@@ -115,7 +145,7 @@ export class SelectTool implements Tool {
 
   cancel(): void {
     const { editor } = this.ctx;
-    if (this.mode.kind === 'move' || this.mode.kind === 'resize' || this.mode.kind === 'rotate') editor.history.cancel();
+    if (this.mode.kind === 'move' || this.mode.kind === 'resize' || this.mode.kind === 'rotate' || this.mode.kind === 'gradient') editor.history.cancel();
     if (this.mode.kind === 'marquee') { editor.marquee = null; editor.emit(); }
     editor.guides = [];
     this.mode = { kind: 'idle' };

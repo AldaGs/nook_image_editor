@@ -61,7 +61,10 @@
 
 {#if presetsOpen}<PresetSheet onPick={addBoard} onClose={() => (presetsOpen = false)} />{/if}
 {#if designOpen}
-  <PropertiesSheet onClose={() => (designOpen = false)} onEditGradient={() => (designOpen = false)} />
+  <PropertiesSheet onClose={() => (designOpen = false)} onEditGradient={(prop, index) => {
+    designOpen = false;
+    editor.editGradient({ nodeId: editor.selection[0]!, prop, index });
+  }} />
 {/if}
 
 {#if notice || ui.error}

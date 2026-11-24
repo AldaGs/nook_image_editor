@@ -5,7 +5,7 @@ import { worldCorners } from './bounds.ts';
 import { starterDoc, toFile, fromFile } from '../doc/serialize.ts';
 import { FRAME_PRESETS } from '../doc/factory.ts';
 import { rotation, multiply, translation } from '../geom/affine.ts';
-import type { Node } from '../doc/types.ts';
+import { linear, type Node } from '../doc/types.ts';
 
 const shapes = (ed: Editor) => [...ed.doc.nodes.values()].filter(n => n.type === 'rect');
 const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
@@ -165,4 +165,23 @@ test('the doc reports touched ids, including the old parent of a moved node', ()
   ed.select([card.id]);
   ed.deleteSelection();
   assert.deepEqual([...ed.doc.takeTouched()].sort(), [card.id, f2!.id].sort());
+});
+
+test('gradient editing targets one paint and lets go when it stops being a gradient', () => {
+  const ed = new Editor(starterDoc());
+  const card = ed.doc.children(ed.doc.children(ed.pageId)[0]!.id)[0]!;
+  ed.select([card.id]);
+  const t = { nodeId: card.id, prop: 'fills' as const, index: 0 };
+  ed.editGradient(t);
+  assert.equal(ed.gradientEdit, null, 'a solid fill has no gradient handles');
+
+  ed.setProp([card.id], 'fills', [linear({ r: 1, g: 0, b: 0, a: 1 }, { r: 0, g: 0, b: 1, a: 1 })]);
+  ed.editGradient(t);
+  assert.ok(ed.gradientEdit);
+  ed.transact('Edit gradient', () => ed.setGradientOps(t, { ...ed.gradientPaint(t)!, to: { x: 1, y: 1 } }));
+  assert.deepEqual((ed.doc.get(card.id)!.fills[0] as { to: unknown }).to, { x: 1, y: 1 });
+
+  ed.undo();
+  ed.undo(); // back to solid: the handles go away
+  assert.equal(ed.gradientEdit, null);
 });

@@ -4,7 +4,7 @@
 // around them all. Frames get no rotate handle (a comp can't be rotated in PBC or AE).
 
 import type { Camera } from '../camera/camera.ts';
-import { corners, identity, type Affine, type Point, type Rect } from '../geom/affine.ts';
+import { apply, corners, identity, type Affine, type Point, type Rect } from '../geom/affine.ts';
 import type { Node } from '../doc/types.ts';
 import type { Editor } from './editor.ts';
 import { localBox, worldBounds } from './bounds.ts';
@@ -47,7 +47,19 @@ export function selectionQuad(editor: Editor, camera: Camera): Point[] | null {
   return sel && corners(sel.toWorld, sel.box).map(p => camera.worldToScreen(p));
 }
 
+/** Screen positions of the edited gradient's end points, or null. */
+export function gradientHandles(editor: Editor, camera: Camera): { from: Point; to: Point } | null {
+  const t = editor.gradientEdit;
+  const g = t && editor.gradientPaint(t);
+  const n = t && editor.doc.get(t.nodeId);
+  if (!g || !n) return null;
+  const m = editor.doc.worldTransform(n.id);
+  const at = (u: Point) => camera.worldToScreen(apply(m, { x: u.x * n.width, y: u.y * n.height }));
+  return { from: at(g.from), to: at(g.to) };
+}
+
 export function handlesFor(editor: Editor, camera: Camera): Handle[] {
+  if (editor.gradientEdit) return []; // the gradient's own handles are showing instead
   const sel = selectionBox(editor);
   const quad = selectionQuad(editor, camera);
   if (!sel || !quad) return [];

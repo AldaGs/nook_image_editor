@@ -8,13 +8,16 @@ import { keyBetween, keysAfter } from '../doc/fractional.ts';
 import { createNode, type FramePreset } from '../doc/factory.ts';
 import { starterDoc } from '../doc/serialize.ts';
 import type { Op } from '../doc/ops.ts';
-import type { Node, NodeProp } from '../doc/types.ts';
+import type { GradientPaint, Node, NodeProp } from '../doc/types.ts';
 import { applyVector, invert, multiply, rotation, translation, type Affine, type Point, type Rect } from '../geom/affine.ts';
 import { localFor, worldBounds } from './bounds.ts';
 import { frameAt } from './hit.ts';
 import type { Guide } from './snap.ts';
 
 export type ToolId = 'select' | 'rect' | 'ellipse' | 'frame';
+
+/** One paint on a node: a fill, or a stroke's paint. */
+export interface GradientTarget { nodeId: string; prop: 'fills' | 'strokes'; index: number }
 
 /** What the UI needs to render toolbars and panels. */
 export interface EditorState {
@@ -36,6 +39,8 @@ export class Editor {
   multiSelect = false;
   /** World-space marquee while one is being dragged (drawn by the renderer). */
   marquee: Rect | null = null;
+  /** The gradient whose end points are being dragged on the canvas, if any. */
+  gradientEdit: GradientTarget | null = null;
   /** World-space snap guides while a move is snapping (drawn by the renderer). */
   guides: Guide[] = [];
 
@@ -84,6 +89,7 @@ export class Editor {
   private changed(): void {
     // Drop selected ids that an undo or delete removed.
     this.selection = this.selection.filter(id => this.doc.nodes.has(id));
+    if (this.gradientEdit && !this.gradientPaint(this.gradientEdit)) this.gradientEdit = null;
     this.emit();
   }
 
@@ -94,7 +100,35 @@ export class Editor {
 
   // ── Selection ────────────────────────────────────────────────
 
-  select(ids: string[]): void { this.selection = [...new Set(ids)]; this.emit(); }
+  select(ids: string[]): void {
+    this.selection = [...new Set(ids)];
+    if (this.gradientEdit && !this.selection.includes(this.gradientEdit.nodeId)) this.gradientEdit = null;
+    this.emit();
+  }
+
+  // ── Gradient handles ─────────────────────────────────────────
+
+  /** Show (or with null, hide) a gradient's end points on the canvas. */
+  editGradient(target: GradientTarget | null): void {
+    this.gradientEdit = target && this.gradientPaint(target) ? target : null;
+    this.emit();
+  }
+
+  /** The gradient a target points at, or null when it is not a gradient (any more). */
+  gradientPaint(t: GradientTarget): GradientPaint | null {
+    const n = this.doc.get(t.nodeId);
+    const p = t.prop === 'fills' ? n?.fills[t.index] : n?.strokes[t.index]?.paint;
+    return p && p.kind !== 'solid' ? p : null;
+  }
+
+  /** Ops that replace the target's paint. */
+  setGradientOps(t: GradientTarget, paint: GradientPaint): Op[] {
+    const n = this.doc.get(t.nodeId)!;
+    const value = t.prop === 'fills'
+      ? n.fills.map((f, i) => (i === t.index ? paint : f))
+      : n.strokes.map((s, i) => (i === t.index ? { ...s, paint } : s));
+    return [{ t: 'set', id: n.id, prop: t.prop, value }];
+  }
   toggleSelected(id: string): void {
     this.select(this.selection.includes(id) ? this.selection.filter(s => s !== id) : [...this.selection, id]);
   }

@@ -12,7 +12,7 @@ import type { BlendMode, Node, Paint, RGBA, Shadow, Stroke } from '../doc/types.
 import { intersects, type Affine, type Point, type Rect } from '../geom/affine.ts';
 import { worldBounds, worldCorners } from '../editor/bounds.ts';
 import type { Editor } from '../editor/editor.ts';
-import { handlesFor, selectionQuad } from '../editor/handles.ts';
+import { gradientHandles, handlesFor, selectionQuad } from '../editor/handles.ts';
 
 export interface RendererTheme {
   background: RGBA; // the area around the boards
@@ -324,6 +324,26 @@ export class Renderer {
     }
 
     // Marquee: translucent fill + outline.
+    // Gradient end points: a line between two rings filled with the end colours.
+    const gh = gradientHandles(editor, camera);
+    const g = editor.gradientEdit && editor.gradientPaint(editor.gradientEdit);
+    if (gh && g) {
+      this.line.setColor(this.ck.WHITE);
+      this.line.setStrokeWidth(3);
+      c.drawLine(gh.from.x, gh.from.y, gh.to.x, gh.to.y, this.line);
+      this.line.setColor(accent);
+      this.line.setStrokeWidth(1.5);
+      c.drawLine(gh.from.x, gh.from.y, gh.to.x, gh.to.y, this.line);
+      const ends: [Point, RGBA][] = [[gh.from, g.stops[0]!.color], [gh.to, g.stops[g.stops.length - 1]!.color]];
+      for (const [q, col] of ends) {
+        this.fill.setColor(this.ck.WHITE);
+        c.drawCircle(q.x, q.y, 9, this.fill);
+        this.fill.setColor(this.color({ ...col, a: 1 }));
+        c.drawCircle(q.x, q.y, 6, this.fill);
+        c.drawCircle(q.x, q.y, 9, this.line);
+      }
+    }
+
     // Snap guides: thin magenta lines.
     if (editor.guides.length) {
       this.line.setColor(this.color({ r: 1, g: 0.2, b: 0.55, a: 1 }));
