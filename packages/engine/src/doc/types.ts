@@ -58,7 +58,18 @@ export interface Outline { kind: 'outline'; visible: boolean; color: RGBA; width
 export interface Grain { kind: 'grain'; visible: boolean; amount: number; size: number }
 /** Halftone: the layer redrawn as dots on a `size` px grid turned by `angle` degrees; darker means bigger dots. */
 export interface Halftone { kind: 'halftone'; visible: boolean; size: number; angle: number }
-export type Effect = Shadow | Blur | Outline | Grain | Halftone;
+/**
+ * Colour correction, the same maths and order as PBC's effects: exposure
+ * (stops, in linear light), brightness and contrast (-1..1, about mid-grey),
+ * hue (degrees) and saturation (-1..1, in HSL), then temperature (-1 cool ..
+ * 1 warm, a luminance-keeping photo filter).
+ */
+export interface Adjust { kind: 'adjust'; visible: boolean; exposure: number; brightness: number; contrast: number; hue: number; saturation: number; temperature: number }
+export type Effect = Shadow | Blur | Outline | Grain | Halftone | Adjust;
+
+/** The photo filter colours temperature uses (After Effects' Warming 85 and Cooling 80). */
+export const WARM: RGBA = { r: 236 / 255, g: 138 / 255, b: 0, a: 1 };
+export const COOL: RGBA = { r: 0, g: 109 / 255, b: 1, a: 1 };
 
 /**
  * Text content and style. `sizing` says which way the box follows the text:
@@ -117,6 +128,8 @@ export interface Node {
   subpaths?: VectorPath[]; // vector: more contours of the same shape (holes, separate pieces), from flatten
   fillRule?: 'nonzero' | 'evenodd'; // vector with subpaths: which overlaps are filled (default nonzero)
   booleanOp?: BooleanOp;  // boolean: how its children's shapes combine
+  /** Group: its bottom child is an alpha mask for the rest (inverted: shows them outside it). */
+  maskMode?: 'alpha' | 'inverted';
   clipContent?: boolean;  // frame
   text?: TextProps;       // text
   motion?: MotionHints;   // PBC/AE export hints (stage 4)
@@ -135,6 +148,7 @@ export const linear = (a: RGBA, b: RGBA): GradientPaint => ({
 /** Defaults for a newly added effect, Figma-like. */
 export function newEffect(kind: Effect['kind']): Effect {
   if (kind === 'layerBlur' || kind === 'backgroundBlur') return { kind, visible: true, radius: 8 };
+  if (kind === 'adjust') return { kind, visible: true, exposure: 0, brightness: 0, contrast: 0, hue: 0, saturation: 0, temperature: 0 };
   if (kind === 'grain') return { kind, visible: true, amount: 0.3, size: 2 };
   if (kind === 'halftone') return { kind, visible: true, size: 12, angle: 45 };
   if (kind === 'outline') return { kind, visible: true, color: { r: 1, g: 1, b: 1, a: 1 }, width: 16 };

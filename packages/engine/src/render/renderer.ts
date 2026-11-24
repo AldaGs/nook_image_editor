@@ -8,13 +8,14 @@
 import type { Canvas, CanvasKit, Image as SkImage, ImageFilter, Paint as SkPaint, Paragraph, Path as SkPath, SkPicture, Surface, TypefaceFontProvider } from 'canvaskit-wasm';
 import type { Camera } from '../camera/camera.ts';
 import type { Doc } from '../doc/document.ts';
-import type { BlendMode, Grain, Halftone, Node, Outline, Paint, RGBA, Shadow, Stroke, TextProps } from '../doc/types.ts';
+import type { Adjust, BlendMode, Grain, Halftone, Node, Outline, Paint, RGBA, Shadow, Stroke, TextProps } from '../doc/types.ts';
 import { apply, intersects, invert, multiply, type Affine, type Point, type Rect } from '../geom/affine.ts';
 import { worldBounds, worldCorners } from '../editor/bounds.ts';
 import type { Editor } from '../editor/editor.ts';
 import { gradientHandles, handlesFor, selectionQuad } from '../editor/handles.ts';
 import { STORY_SAFE_ZONE, isStoryShaped } from '../doc/factory.ts';
 import { contoursFromCmds, contoursOf, type VectorPath } from '../doc/shapes.ts';
+import { COOL, WARM } from '../doc/types.ts';
 
 export interface RendererTheme {
   background: RGBA; // the area around the boards
@@ -221,6 +222,7 @@ export class Renderer {
     for (const e of fx) if (e.kind === 'dropShadow') this.withFilter(c, this.dropShadow(e), undefined, () => this.drawContent(c, doc, n, outline));
     this.drawContent(c, doc, n, outline);
     for (const e of fx) if (e.kind === 'innerShadow') this.withFilter(c, this.innerShadow(e), this.ck.BlendMode.SrcATop, () => this.drawContent(c, doc, n, outline));
+    for (const e of fx) if (e.kind === 'adjust') this.drawAdjust(c, e);
     for (const e of fx) if (e.kind === 'grain' || e.kind === 'halftone') this.drawTexture(c, e);
 
     if (isolate) c.restore();
@@ -527,6 +529,7 @@ export class Renderer {
   private drawContent(c: Canvas, doc: Doc, n: Node, outline: SkPath | null): void {
     if (n.type === 'text' && n.text) return this.drawText(c, n);
     if (outline) for (const f of n.fills) this.drawPaint(c, n, f, p => c.drawPath(outline, p));
+    if (n.type === 'group' && n.maskMode) return this.drawMasked(c, doc, n);
     if (n.type === 'frame' || n.type === 'group') {
       c.save();
       if (n.type === 'frame' && n.clipContent && outline) c.clipPath(outline, this.ck.ClipOp.Intersect, true);
@@ -534,6 +537,40 @@ export class Renderer {
       c.restore();
     }
     if (outline) for (const s of n.strokes) this.drawStroke(c, n, s, outline);
+  }
+
+  /**
+   * A mask group: the content (every child but the bottom one) in a layer, then
+   * the bottom child drawn over it with DstIn (keep where the mask is opaque)
+   * or DstOut (inverted). The mask is used even when hidden, like Figma's.
+   */
+  private drawMasked(c: Canvas, doc: Doc, n: Node): void {
+    const [mask, ...content] = doc.children(n.id);
+    c.saveLayer();
+    content.forEach(k => this.drawNode(c, doc, k));
+    if (mask) {
+      const p = new this.ck.Paint();
+      p.setBlendMode(n.maskMode === 'inverted' ? this.ck.BlendMode.DstOut : this.ck.BlendMode.DstIn);
+      c.saveLayer(p);
+      p.delete();
+      this.drawNode(c, doc, { ...mask, visible: true });
+      c.restore();
+    }
+    c.restore();
+  }
+
+  /** Colour correction over what the layer has drawn so far, through a blender that reads its pixels. */
+  private drawAdjust(c: Canvas, e: Adjust): void {
+    if (!e.exposure && !e.brightness && !e.contrast && !e.hue && !e.saturation && !e.temperature) return;
+    const fx = this.effect(ADJUST_BLEND, true);
+    if (!fx) return;
+    const t = e.temperature >= 0 ? WARM : COOL;
+    const blender = fx.makeBlender([e.exposure, e.brightness, e.contrast, e.hue, e.saturation, Math.min(1, Math.abs(e.temperature)), t.r, t.g, t.b]);
+    const paint = new this.ck.Paint();
+    paint.setBlender(blender);
+    c.drawPaint(paint);
+    paint.delete();
+    blender.delete();
   }
 
   /** Strokes are centred on the outline; inside/outside double the width and clip half away. */
@@ -1005,4 +1042,71 @@ half4 main(half4 src, half4 dst) {
   half lum = dot(dst.rgb / dst.a, half3(0.299, 0.587, 0.114));
   half r = sqrt(max(0, 1 - lum)) * 0.75;
   return dst * (1 - smoothstep(r - src.g, r + src.g, src.r));
+}`;
+
+/**
+ * PBC's colour effects in its order, each clamped like PBC's 8-bit passes:
+ * Exposure (linear light, 2^stops), Brightness/Contrast, Hue/Saturation (HSL),
+ * Photo Filter (multiply toward the colour by density, keep luminance).
+ */
+const ADJUST_BLEND = `
+uniform float exposure;
+uniform float brightness;
+uniform float contrast;
+uniform float hue;
+uniform float sat;
+uniform float density;
+uniform float3 filterColor;
+
+float toLinear(float v) { return v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4); }
+float toSrgb(float v) { return v <= 0.0031308 ? v * 12.92 : 1.055 * pow(v, 1.0 / 2.4) - 0.055; }
+
+float3 rgb2hsl(float3 c) {
+  float mx = max(c.r, max(c.g, c.b)), mn = min(c.r, min(c.g, c.b));
+  float l = (mx + mn) / 2.0, d = mx - mn;
+  if (d < 1e-6) return float3(0.0, 0.0, l);
+  float s = d / (1.0 - abs(2.0 * l - 1.0));
+  float h;
+  if (mx == c.r) h = mod((c.g - c.b) / d, 6.0);
+  else if (mx == c.g) h = (c.b - c.r) / d + 2.0;
+  else h = (c.r - c.g) / d + 4.0;
+  return float3(h / 6.0, s, l);
+}
+
+float3 hsl2rgb(float3 hsl) {
+  float h = hsl.x * 6.0, s = hsl.y, l = hsl.z;
+  float ch = (1.0 - abs(2.0 * l - 1.0)) * s;
+  float x = ch * (1.0 - abs(mod(h, 2.0) - 1.0));
+  float m = l - ch / 2.0;
+  float3 c;
+  if (h < 1.0) c = float3(ch, x, 0.0);
+  else if (h < 2.0) c = float3(x, ch, 0.0);
+  else if (h < 3.0) c = float3(0.0, ch, x);
+  else if (h < 4.0) c = float3(0.0, x, ch);
+  else if (h < 5.0) c = float3(x, 0.0, ch);
+  else c = float3(ch, 0.0, x);
+  return c + m;
+}
+
+float luma(float3 c) { return dot(c, float3(0.2126, 0.7152, 0.0722)); }
+
+half4 main(half4 src, half4 dst) {
+  if (dst.a <= 0.0) return dst;
+  float3 c = float3(dst.rgb) / float(dst.a);
+  if (exposure != 0.0) {
+    float k = exp2(exposure);
+    c = clamp(float3(toSrgb(toLinear(max(c.r, 0.0)) * k), toSrgb(toLinear(max(c.g, 0.0)) * k), toSrgb(toLinear(max(c.b, 0.0)) * k)), 0.0, 1.0);
+  }
+  if (brightness != 0.0 || contrast != 0.0) c = clamp((c - 0.5) * (1.0 + contrast) + 0.5 + brightness, 0.0, 1.0);
+  if (hue != 0.0 || sat != 0.0) {
+    float3 hsl = rgb2hsl(c);
+    hsl.x = fract(hsl.x + hue / 360.0);
+    hsl.y = clamp(hsl.y + sat, 0.0, 1.0);
+    c = clamp(hsl2rgb(hsl), 0.0, 1.0);
+  }
+  if (density > 0.0) {
+    float3 o = c + (c * filterColor - c) * density;
+    c = clamp(o * (luma(c) / max(luma(o), 1e-6)), 0.0, 1.0);
+  }
+  return half4(half3(c) * dst.a, dst.a);
 }`;

@@ -36,6 +36,7 @@
   import spline from 'lucide-static/icons/spline.svg?raw';
   import combine from 'lucide-static/icons/combine.svg?raw';
   import flatten from 'lucide-static/icons/layers-2.svg?raw';
+  import maskIcon from 'lucide-static/icons/square-dashed.svg?raw';
   import square from 'lucide-static/icons/square.svg?raw';
   import trash from 'lucide-static/icons/trash-2.svg?raw';
   import type_ from 'lucide-static/icons/type.svg?raw';
@@ -45,7 +46,7 @@
 
   const ICONS = {
     arrowDown, arrowUp, chevronDown, chevronRight, circle, eye, eyeOff, frame, group, image, layers,
-    layoutTemplate, listChecks, lock, lockOpen, maximize, minus, pipette, plus, pointer, redo, settings, share, sliders, smartphone, square, flatten, combine, spline, penTool, check, pentagon, star, slash, sticker, bookmarkPlus, trash, type: type_,
+    layoutTemplate, listChecks, lock, lockOpen, maximize, minus, pipette, plus, pointer, redo, settings, share, sliders, smartphone, square, mask: maskIcon, flatten, combine, spline, penTool, check, pentagon, star, slash, sticker, bookmarkPlus, trash, type: type_,
     undo, ungroup, x,
   };
   export type IconName = keyof typeof ICONS;

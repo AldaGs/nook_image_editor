@@ -50,6 +50,7 @@
     <IconButton icon="group" label="Group (Ctrl+G)" onclick={() => editor.group()} />
     {#if selected.length > 1}
       <IconButton icon="combine" label="Combine shapes" onclick={() => editor.combine()} />
+      <IconButton icon="mask" label="Mask (bottom layer masks the rest)" onclick={() => editor.mask()} />
     {/if}
     {#if flattenable}
       <IconButton icon="flatten" label="Flatten to path" onclick={() => canvasRef.engine?.flatten()} />

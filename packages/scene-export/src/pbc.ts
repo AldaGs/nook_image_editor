@@ -11,7 +11,7 @@
 // in the report, never guessed.
 
 import {
-  affine, contoursOf, estimateText, localBox, paintColor,
+  affine, contoursOf, estimateText, localBox, paintColor, WARM, COOL,
   type Doc, type Effect, type Node, type Point, type RGBA, type TextProps,
 } from '@nook/engine';
 
@@ -178,10 +178,23 @@ function toLayer(doc: Doc, n: Node, ctx: Ctx): unknown {
         stroke: stroke(n, report),
       };
     }
+    case 'boolean': {
+      // PBC's compound path: the children's shapes combined, drawn with this layer's paint.
+      const box = localBox(doc, n);
+      const sized = { ...n, width: box.width, height: box.height };
+      return {
+        ...layer,
+        transform: transform(n.transform[4], n.transform[5], angle, n.opacity),
+        compound: pascal(n.booleanOp ?? 'union'),
+        ...paint(sized, { x: -box.x, y: -box.y }, report),
+        stroke: stroke(n, report),
+        children: doc.children(n.id).map(c => toLayer(doc, c, ctx)),
+      };
+    }
     case 'group':
-    case 'boolean':
+      if (n.maskMode) return maskedGroup(doc, n, layer, angle, ctx);
+    // falls through
     case 'frame': {
-      if (n.type === 'boolean') report.push(`"${n.name}": PBC has no boolean shapes yet, so its shapes were exported as a group, not merged.`);
       const role = motionRole(n);
       if (role === 'precomp') return precompLayer(doc, n, layer, angle, ctx);
       // A group's origin is its transform's translation; children stay relative to it.
@@ -245,6 +258,23 @@ function precompLayer(doc: Doc, n: Node, layer: Record<string, unknown>, angle: 
     : null;
   if (mask && (n.cornerRadius ?? 0) > 0) ctx.sh.report.push(`Frame "${n.name}": its clip is square in PBC (rounded corners aren't in the mask).`);
   return { ...layer, transform: transform(at.x, at.y, angle, n.opacity), precomp: compId, ...(mask ? { mask } : {}) };
+}
+
+/**
+ * A mask group as a track matte: the content (every child but the bottom one)
+ * in its own precomp, matted by the mask layer, which sits right above it as
+ * PBC's mattes read the next sibling up.
+ */
+function maskedGroup(doc: Doc, n: Node, layer: Record<string, unknown>, angle: number, ctx: Ctx): unknown {
+  const [mask, ...content] = doc.children(n.id);
+  const box = localBox(doc, n);
+  const compId = addComp(ctx.sh, `${n.name} content`, box.width, box.height, CLEAR, undefined, inner => ({
+    root: { transform: transform(-box.x, -box.y, 0, 1) },
+    children: content.map(c => toLayer(doc, c, inner)),
+  }));
+  const contentLayer = { ...baseLayer(ctx.id(), `${n.name} content`), transform: transform(box.x, box.y, 0, 1), precomp: compId, matte: n.maskMode === 'inverted' ? 'AlphaInverted' : 'Alpha' };
+  const children = mask ? [contentLayer, { ...(toLayer(doc, mask, ctx) as object), hidden: false }] : [contentLayer];
+  return { ...layer, transform: transform(n.transform[4], n.transform[5], angle, n.opacity), children };
 }
 
 /** Fields every PBC node needs; the rest use PBC's defaults. */
@@ -315,7 +345,7 @@ function stroke(n: Node, report: string[]): unknown {
 }
 
 const EFFECT_NAMES: Record<Effect['kind'], string> = {
-  dropShadow: 'drop shadow', innerShadow: 'inner shadow', layerBlur: 'layer blur', backgroundBlur: 'background blur', outline: 'sticker outline', grain: 'grain', halftone: 'halftone',
+  dropShadow: 'drop shadow', innerShadow: 'inner shadow', layerBlur: 'layer blur', backgroundBlur: 'background blur', outline: 'sticker outline', grain: 'grain', halftone: 'halftone', adjust: 'adjust colors',
 };
 
 /**
@@ -332,6 +362,16 @@ function effects(n: Node, report: string[]): unknown[] {
       }];
     }
     if (e.kind === 'layerBlur') return [{ enabled: e.visible, kind: { GaussianBlur: { radius: k(e.radius / 2) } } }];
+    if (e.kind === 'adjust') {
+      // One Nook effect, up to four PBC ones in the same order; parts left at zero are skipped.
+      const out: unknown[] = [];
+      const on = e.visible;
+      if (e.exposure) out.push({ enabled: on, kind: { Exposure: { exposure: k(e.exposure), offset: k(0), gamma: k(1) } } });
+      if (e.brightness || e.contrast) out.push({ enabled: on, kind: { BrightnessContrast: { brightness: k(e.brightness), contrast: k(e.contrast) } } });
+      if (e.hue || e.saturation) out.push({ enabled: on, kind: { HueSaturation: { hue: k(e.hue), saturation: k(e.saturation), lightness: k(0) } } });
+      if (e.temperature) out.push({ enabled: on, kind: { PhotoFilter: { color: k(e.temperature > 0 ? WARM : COOL), density: k(Math.min(1, Math.abs(e.temperature))) } } });
+      return out;
+    }
     if (e.visible) report.push(`"${n.name}": ${EFFECT_NAMES[e.kind]} isn't in PBC yet, so it was left out.`);
     return [];
   });

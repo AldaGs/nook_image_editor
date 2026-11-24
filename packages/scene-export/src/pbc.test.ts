@@ -161,7 +161,7 @@ test('polygons, stars and lines become Vector paths at the node origin', () => {
   assert.ok(!report.some(r => r.includes('Star') || r.includes('Line')));
 });
 
-test('combining shapes makes a boolean layer with the bottom look; PBC gets its shapes as a group', () => {
+test('combining shapes makes a boolean layer with the bottom look; PBC gets a compound path', () => {
   const ed = new Editor(starterDoc());
   const board = ed.doc.children(ed.pageId)[0]!;
   const a = createNode('rect', { parentId: board.id, order: 'y', name: 'A', transform: [1, 0, 0, 1, 0, 0], width: 100, height: 100 });
@@ -177,8 +177,41 @@ test('combining shapes makes a boolean layer with the bottom look; PBC gets its 
   assert.deepEqual(ed.doc.children(bool.id).map(n => n.name), ['A', 'B']);
   const { text, report } = exportPbc(ed.doc, ed.pageId);
   const layer = JSON.parse(text).project.comps['1'].root.children.at(-1);
+  assert.equal(layer.compound, 'Subtract');
+  assert.deepEqual(layer.fill.Const, { r: 1, g: 0, b: 0, a: 1 });
   assert.deepEqual(layer.children.map((c: { name: string }) => c.name), ['A', 'B']);
-  assert.ok(report.some(r => r.includes('Subtract') && r.includes('group')));
+  assert.ok(!report.some(r => r.includes('Subtract')));
   ed.undo();
   assert.equal(ed.doc.get(a.id)!.parentId, board.id);
+});
+
+test('a mask group exports as its content in a precomp, matted by the mask right above it', () => {
+  const ed = new Editor(starterDoc());
+  const board = ed.doc.children(ed.pageId)[0]!;
+  const m = createNode('ellipse', { parentId: board.id, order: 'y', name: 'Circle', transform: [1, 0, 0, 1, 0, 0], width: 100, height: 100 });
+  const pic = createNode('rect', { parentId: board.id, order: 'z', name: 'Photo', transform: [1, 0, 0, 1, 20, 20], width: 200, height: 200 });
+  ed.transact('Add', () => [{ t: 'add', node: m }, { t: 'add', node: pic }]);
+  ed.select([m.id, pic.id]);
+  ed.mask();
+  const g = ed.doc.get(ed.selection[0]!)!;
+  assert.equal(g.maskMode, 'alpha');
+  ed.setProp([g.id], 'maskMode', 'inverted');
+  const { text } = exportPbc(ed.doc, ed.pageId);
+  const { project } = JSON.parse(text);
+  const layer = project.comps['1'].root.children.at(-1);
+  assert.deepEqual(layer.children.map((c: { name: string }) => c.name), ['Mask group content', 'Circle']);
+  assert.equal(layer.children[0].matte, 'AlphaInverted');
+  const comp = project.comps[String(layer.children[0].precomp)];
+  assert.deepEqual(comp.root.children.map((c: { name: string }) => c.name), ['Photo']);
+});
+
+test('adjust colors becomes PBC colour effects in order, skipping parts at zero', () => {
+  const ed = new Editor(starterDoc());
+  const card = ed.doc.children(ed.doc.children(ed.pageId)[0]!.id)[0]!;
+  ed.setProp([card.id], 'effects', [{ kind: 'adjust', visible: true, exposure: 0.5, brightness: 0, contrast: 0.2, hue: 0, saturation: -0.3, temperature: 0.4 }]);
+  const { text, report } = exportPbc(ed.doc, ed.pageId);
+  const fx = JSON.parse(text).project.comps['1'].root.children[0].effects;
+  assert.deepEqual(fx.map((e: { kind: object }) => Object.keys(e.kind)[0]), ['Exposure', 'BrightnessContrast', 'HueSaturation', 'PhotoFilter']);
+  assert.equal(fx[3].kind.PhotoFilter.density.Const, 0.4);
+  assert.ok(!report.some(r => r.includes('adjust')));
 });

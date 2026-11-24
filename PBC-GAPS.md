@@ -4,13 +4,14 @@ Things Nook can design that a `.pbc` can't carry or PBC can't draw yet. PBC impl
 
 Only items marked **Important** affect whether a board looks the same in PBC in everyday use. The rest can wait until PBC gets to them.
 
-Updated: Nov 24, 2026 (Nook Stage 5).
+Updated: Nov 24, 2026 (masks and colour correction).
 
 ## Important
 
 | Gap | What happens now | What PBC needs |
 | --- | --- | --- |
 | **Variable-font weights.** With a variable font installed (for example `Montserrat-VariableFont_wght.ttf`), PBC draws weights 600, 800 and 900 all as the heaviest cut. 300 and 400 are right. | Heavier text is bolder and wider in PBC than in Nook, so it can wrap onto extra lines. Nook writes the right weight. | A bug in PBC's text shaping (`crates/core/src/text.rs`). The variable `wght` axis should be set to the requested weight, as `node.rs` already says it should. Likely suspects are fontique picking a bold instance or applying synthetic emboldening. |
+| **Holes in compound paths.** A boolean whose result has a hole fully inside it (a square with a circle subtracted from its middle), and Exclude's overlap, draw filled in PBC. Edge bites (a circle cutting the square's edge) are right. | Nook exports booleans as PBC compound paths (`compound`), which is correct data; PBC draws the merged result's inner contours filled. | In `crates/core/src/pathfinder.rs` / the compound render item: draw the combined path with an even-odd fill (or make `path_sub`'s hole contours wind the other way). |
 
 ## Effects
 
@@ -40,8 +41,7 @@ Updated: Nov 24, 2026 (Nook Stage 5).
 | --- | --- | --- |
 | A board's own strokes and effects, or a rotated board | Not exported, because a comp has no strokes, effects or rotation. | Probably nothing: in Nook, keep that styling on a layer inside the board. |
 
-| Boolean shapes (union, subtract, intersect, exclude) | Exported as a group of the separate shapes, not merged. | A boolean shape group (path ops at render time), or Nook writes the merged outline as one Vector path once flatten can produce multi-contour paths. |
-| Paths with several contours (holes, separate pieces) | Each contour is its own Vector layer in a group; holes fill in. | Several contours per `VectorPath`, or a list of paths per Vector shape, with a fill rule (non-zero or even-odd). Then Nook can also export booleans as their merged outline. |
+| Paths with several contours (holes, separate pieces) | Each contour is its own Vector layer in a group; holes fill in. | Several contours per `VectorPath`, or a list of paths per Vector shape, with a fill rule (non-zero or even-odd). |
 | Rounded corners on a nested board's clip | The precomp's mask is square. | Nothing new: Nook could write the mask as a rounded Vector path. To do on the Nook side. |
 | Image fills | Drawn as a gray box. | PBC footage is a file path (`Asset.path`, used as given). A `.pbc` that travels with its pictures needs asset paths resolved beside the project file; then Nook can export a folder or zip. |
 | Motion notes | Written to the layer's `tags` as `note: …` (the root layer's for a board). | A notes field PBC shows, if wanted. |

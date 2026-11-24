@@ -181,7 +181,19 @@ export function exportSvg(doc: Doc, boardId: string, opts: SvgOptions = {}): Svg
     let body: string;
     switch (n.type) {
       case 'group':
-        body = doc.children(n.id).map(layer).join('');
+        if (n.maskMode) {
+          // The bottom child as a luminance mask of its alpha: drawn white, so opaque shows (black for inverted).
+          const [m, ...content] = doc.children(n.id);
+          const mid = id('m');
+          const box = { w: board!.width * 4, h: board!.height * 4 };
+          const white = m ? layer({ ...m, visible: true }).replace(/fill="[^"]*"/g, 'fill="#fff"').replace(/stroke="[^"]*"/g, 'stroke="#fff"') : '';
+          const inner = n.maskMode === 'inverted'
+            ? `<rect x="${r(-box.w)}" y="${r(-box.h)}" width="${r(box.w * 2)}" height="${r(box.h * 2)}" fill="#fff"/>${white.replace(/#fff/g, '#000')}`
+            : white;
+          defs.push(`<mask id="${mid}" maskUnits="userSpaceOnUse" x="${r(-box.w)}" y="${r(-box.h)}" width="${r(box.w * 2)}" height="${r(box.h * 2)}">${inner}</mask>`);
+          if (m && (m.type === 'text' || m.fills.some(f => f.kind !== 'solid'))) note(`"${n.name}": its mask is exported by shape; gradient or picture transparency in the mask isn't kept in SVG.`);
+          body = `<g mask="url(#${mid})">${content.map(layer).join('')}</g>`;
+        } else body = doc.children(n.id).map(layer).join('');
         break;
       case 'frame': {
         let kids = doc.children(n.id).map(layer).join('');

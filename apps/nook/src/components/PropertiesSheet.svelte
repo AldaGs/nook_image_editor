@@ -25,12 +25,12 @@
   const painted = $derived(!!n && n.type !== 'group');
 
   const EFFECTS: [Effect['kind'], string][] = [
-    ['dropShadow', 'Drop shadow'], ['innerShadow', 'Inner shadow'], ['layerBlur', 'Layer blur'], ['backgroundBlur', 'Background blur'], ['outline', 'Sticker outline'], ['grain', 'Grain'], ['halftone', 'Halftone'],
+    ['dropShadow', 'Drop shadow'], ['innerShadow', 'Inner shadow'], ['layerBlur', 'Layer blur'], ['backgroundBlur', 'Background blur'], ['outline', 'Sticker outline'], ['adjust', 'Adjust colors'], ['grain', 'Grain'], ['halftone', 'Halftone'],
   ];
   const label = (m: string) => m.replace(/[A-Z]/g, c => ` ${c.toLowerCase()}`).replace(/^./, c => c.toUpperCase());
 
   /** Live while dragging (done = false), one undo step when done. */
-  function edit(prop: 'opacity' | 'blendMode' | 'fills' | 'strokes' | 'effects' | 'width' | 'height' | 'motion' | 'pointCount' | 'innerRatio' | 'booleanOp', value: unknown, done = true) {
+  function edit(prop: 'opacity' | 'blendMode' | 'fills' | 'strokes' | 'effects' | 'width' | 'height' | 'motion' | 'pointCount' | 'innerRatio' | 'booleanOp' | 'maskMode', value: unknown, done = true) {
     editor.preview(ids, prop, value);
     if (done) editor.commitEdit();
   }
@@ -63,6 +63,17 @@
       { t: 'set', id: node.id, prop: 'effects', value: effects },
     ]);
   }
+
+  /** Adjust colors sliders: key, label, range, step, and the factor shown (percent for the -1..1 ones). */
+  const ADJUST: ['exposure' | 'brightness' | 'contrast' | 'saturation' | 'temperature' | 'hue', string, number, number, number, number][] = [
+    ['exposure', 'Exposure', -3, 3, 0.05, 1],
+    ['brightness', 'Brightness', -100, 100, 1, 100],
+    ['contrast', 'Contrast', -100, 100, 1, 100],
+    ['saturation', 'Saturation', -100, 100, 1, 100],
+    ['temperature', 'Temperature', -100, 100, 1, 100],
+    ['hue', 'Hue', -180, 180, 1, 1],
+  ];
+  const fmt = (v: number, key: string) => (key === 'exposure' ? `${v > 0 ? '+' : ''}${v.toFixed(2)}` : key === 'hue' ? `${Math.round(v)}°` : `${v > 0 ? '+' : ''}${Math.round(v)}`);
 
   /** The shadow whose colour picker is open, by effect index. */
   let shadowPicker = $state<number | null>(null);
@@ -118,6 +129,15 @@
         <p class="hint">{topLevel ? 'Each board is a comp in PBC.' : 'Precomps keep blend modes and effects, and clip boards. Layer groups stay editable in place.'}</p>
         <textarea aria-label="Motion notes" rows="2" placeholder="Notes for the animator" value={m.notes ?? ''}
           onchange={e => edit('motion', { ...m, notes: e.currentTarget.value.trim() || undefined })}></textarea>
+      </section>
+    {/if}
+
+    {#if n.type === 'group' && n.maskMode}
+      <section>
+        <h3>Mask</h3>
+        <p class="hint">The bottom layer is the mask: the layers above it show where it's opaque.</p>
+        <label class="field"><input class="check" type="checkbox" checked={n.maskMode === 'inverted'}
+          onchange={e => edit('maskMode', e.currentTarget.checked ? 'inverted' : 'alpha')} />Invert (show outside the mask)</label>
       </section>
     {/if}
 
@@ -285,6 +305,16 @@
             {#if shadowPicker === i}
               <div class="full"><ColorPicker color={e.color} onchange={(color, done) => edit('effects', replace(n.effects, i, { ...e, color }), done)} /></div>
             {/if}
+          {:else if e.kind === 'adjust'}
+            {#each ADJUST as [key, name, min, max, step, scale] (key)}
+              <label class="slider">
+                <span>{name}</span>
+                <input type="range" {min} {max} {step} value={e[key] * scale}
+                  oninput={ev => edit('effects', replace(n.effects, i, { ...e, [key]: +ev.currentTarget.value / scale }), false)}
+                  onchange={ev => edit('effects', replace(n.effects, i, { ...e, [key]: +ev.currentTarget.value / scale }))} />
+                <button type="button" class="val" aria-label="Reset {name}" onclick={() => edit('effects', replace(n.effects, i, { ...e, [key]: 0 }))}>{fmt(e[key] * scale, key)}</button>
+              </label>
+            {/each}
           {:else if e.kind === 'grain'}
             <label class="field">Amount<input type="number" inputmode="numeric" min="0" max="100" value={Math.round(e.amount * 100)}
               onchange={ev => edit('effects', replace(n.effects, i, { ...e, amount: Math.min(1, num(ev.currentTarget.value, 0) / 100) }))} />%</label>
@@ -328,6 +358,8 @@
   .field { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-muted); }
   .field input { width: 3.6em; min-width: 0; }
   .field input.check { width: auto; }
+  .slider { display: grid; grid-template-columns: 6.5em 1fr 3.5em; align-items: center; gap: 8px; flex-basis: 100%; font-size: 13px; }
+  .slider .val { background: none; border: none; padding: 4px 0; font: inherit; font-size: 12px; color: var(--text-muted); text-align: right; font-variant-numeric: tabular-nums; }
   section { min-width: 0; }
   .full { flex-basis: 100%; }
   textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; color: inherit; padding: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; resize: vertical; user-select: text; -webkit-user-select: text; }

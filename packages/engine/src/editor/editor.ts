@@ -566,7 +566,16 @@ export class Editor {
     this.wrap('boolean', op);
   }
 
-  private wrap(type: 'group' | 'boolean', op?: BooleanOp): void {
+  /**
+   * Mask the selection: the bottom selected layer becomes an alpha mask for the
+   * ones above it, inside a new mask group (one undo step). Needs two layers.
+   */
+  mask(): void {
+    if (this.topmostSelected().length < 2) return;
+    this.wrap('group', undefined, { maskMode: 'alpha', name: 'Mask group' });
+  }
+
+  private wrap(type: 'group' | 'boolean', op?: BooleanOp, extra: Partial<Node> = {}): void {
     const nodes = this.inDrawOrder(this.topmostSelected()).filter(n => n.type !== 'page');
     if (!nodes.length) return;
     const top = nodes[nodes.length - 1]!;
@@ -575,10 +584,10 @@ export class Editor {
     const after = sibs[sibs.indexOf(top) + 1];
     const base = nodes[0]!;
     const look = type === 'boolean' ? { booleanOp: op, fills: structuredClone(base.fills), strokes: structuredClone(base.strokes), name: OP_NAMES[op!] } : { name: 'Group' };
-    const group = createNode(type, { ...look, parentId, order: keyBetween(top.order, after?.order ?? null), width: 0, height: 0 });
+    const group = createNode(type, { ...look, ...extra, parentId, order: keyBetween(top.order, after?.order ?? null), width: 0, height: 0 });
     const orders = keysAfter(null, nodes.length);
     // Two steps in one undo entry: reparent maths needs the group to exist first.
-    const label = type === 'group' ? 'Group' : 'Combine';
+    const label = extra.maskMode ? 'Mask' : type === 'group' ? 'Group' : 'Combine';
     this.history.begin(label);
     this.transact(label, () => [{ t: 'add', node: group }]);
     this.transact(label, () => nodes.flatMap((n, i) => this.reparentOps(n, group.id, orders[i]!)));
