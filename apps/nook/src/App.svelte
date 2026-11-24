@@ -9,6 +9,7 @@
   import LayersPanel from './components/LayersPanel.svelte';
   import PresetSheet from './components/PresetSheet.svelte';
   import PropertiesSheet from './components/PropertiesSheet.svelte';
+  import ExportSheet from './components/ExportSheet.svelte';
   import Toolbar from './components/Toolbar.svelte';
   import TopBar from './components/TopBar.svelte';
   import { editor, loadSession, ui } from './lib/session.svelte';
@@ -20,6 +21,7 @@
   let layersOpen = $state(false);
   let presetsOpen = $state(false);
   let designOpen = $state(false);
+  let exportOpen = $state(false);
   let notice = $state<string | null>(null);
 
   // Zoom to fit once both the saved document and the canvas are ready.
@@ -64,7 +66,7 @@
 </script>
 
 <main>
-  <TopBar {layersOpen} onToggleLayers={() => (layersOpen = !layersOpen)} onFit={fit} onExport={exportToPbc} />
+  <TopBar {layersOpen} onToggleLayers={() => (layersOpen = !layersOpen)} onFit={fit} onExport={() => { editor.endTextEdit(); exportOpen = true; }} />
   <div class="stage">
     <Canvas bind:engine onDesign={() => (designOpen = true)} />
     {#if layersOpen}<LayersPanel onClose={() => (layersOpen = false)} />{/if}
@@ -73,6 +75,9 @@
 </main>
 
 {#if presetsOpen}<PresetSheet onPick={addBoard} onClose={() => (presetsOpen = false)} />{/if}
+{#if exportOpen}
+  <ExportSheet {engine} onClose={() => (exportOpen = false)} onExportPbc={() => { exportOpen = false; exportToPbc(); }} />
+{/if}
 {#if designOpen}
   <PropertiesSheet onClose={() => (designOpen = false)} onEditGradient={(prop, index) => {
     designOpen = false;

@@ -9,7 +9,7 @@ import type { Canvas, CanvasKit, Image as SkImage, ImageFilter, Paint as SkPaint
 import type { Camera } from '../camera/camera.ts';
 import type { Doc } from '../doc/document.ts';
 import type { BlendMode, Node, Paint, RGBA, Shadow, Stroke, TextProps } from '../doc/types.ts';
-import { apply, intersects, type Affine, type Point, type Rect } from '../geom/affine.ts';
+import { apply, intersects, invert, multiply, type Affine, type Point, type Rect } from '../geom/affine.ts';
 import { worldBounds, worldCorners } from '../editor/bounds.ts';
 import type { Editor } from '../editor/editor.ts';
 import { gradientHandles, handlesFor, selectionQuad } from '../editor/handles.ts';
@@ -27,7 +27,7 @@ export class Renderer {
   private dpr = 1;
   private pictures = new Map<string, SkPicture>();
   private fonts: TypefaceFontProvider;
-  private requestedFonts = new Set<string>();
+  private fontLoads = new Map<string, Promise<void>>();
   private clear: SkPaint; // transparent background paint for text runs
   /** Fetches a font's file for a family and weight (the app knows where fonts live). */
   loadFont: ((family: string, weight: number) => Promise<ArrayBuffer | null>) | null = null;
@@ -36,6 +36,7 @@ export class Renderer {
   /** Called after an image arrives, so the canvas redraws. */
   onImagesChanged: (() => void) | null = null;
   private images = new Map<string, SkImage | null>(); // null: loading, or failed
+  private imageLoads = new Map<string, Promise<void>>();
   /** Called after a font arrives, so text can be re-measured and redrawn. */
   onFontsChanged: (() => void) | null = null;
   private picturesFor: Doc | null = null;
@@ -233,31 +234,78 @@ export class Renderer {
 
   /** The decoded image for an asset, or null while it loads (boards redraw when it arrives). */
   private image(id: string): SkImage | null {
-    if (this.images.has(id)) return this.images.get(id)!;
-    this.images.set(id, null);
-    this.loadAsset?.(id).then(buf => {
-      const img = buf && this.ck.MakeImageFromEncoded(new Uint8Array(buf));
-      if (!img) return;
-      this.images.set(id, img);
-      this.clearPictures();
-      this.onImagesChanged?.();
-    }).catch(() => { /* stays a placeholder */ });
-    return null;
+    this.loadImage(id);
+    return this.images.get(id) ?? null;
+  }
+
+  /** Start (once) decoding an asset; resolves when it is drawable, or has failed. */
+  private loadImage(id: string): Promise<void> {
+    let load = this.imageLoads.get(id);
+    if (!load) {
+      this.images.set(id, null);
+      load = (this.loadAsset?.(id) ?? Promise.resolve(null)).then(buf => {
+        const img = buf && this.ck.MakeImageFromEncoded(new Uint8Array(buf));
+        if (!img) return;
+        this.images.set(id, img);
+        this.clearPictures();
+        this.onImagesChanged?.();
+      }).catch(() => { /* stays a placeholder */ });
+      this.imageLoads.set(id, load);
+    }
+    return load;
   }
 
   // ── Text ─────────────────────────────────────────────────────
 
   /** Ask for a font once; when it arrives, cached boards are redrawn and text re-measured. */
-  private ensureFont(family: string, weight: number): void {
+  private ensureFont(family: string, weight: number): Promise<void> {
     const key = `${family}@${weight}`;
-    if (!this.loadFont || this.requestedFonts.has(key)) return;
-    this.requestedFonts.add(key);
-    this.loadFont(family, weight).then(buf => {
-      if (!buf) return;
-      this.fonts.registerFont(buf, family);
-      this.clearPictures();
-      this.onFontsChanged?.();
-    }).catch(() => { this.requestedFonts.delete(key); });
+    let load = this.fontLoads.get(key);
+    if (!load) {
+      load = (this.loadFont?.(family, weight) ?? Promise.resolve(null)).then(buf => {
+        if (!buf) return;
+        this.fonts.registerFont(buf, family);
+        this.clearPictures();
+        this.onFontsChanged?.();
+      }).catch(() => { this.fontLoads.delete(key); });
+      this.fontLoads.set(key, load);
+    }
+    return load;
+  }
+
+  // ── Export ───────────────────────────────────────────────────
+
+  /** Wait until every picture and font a subtree uses has loaded. */
+  private async prepare(doc: Doc, root: Node): Promise<void> {
+    const waits: Promise<void>[] = [];
+    for (const n of [root, ...doc.descendants(root.id)]) {
+      for (const p of [...n.fills, ...n.strokes.map(s => s.paint)]) if (p.kind === 'image') waits.push(this.loadImage(p.assetId));
+      if (n.text) waits.push(this.ensureFont(n.text.family, n.text.weight), this.ensureFont('Inter', 400));
+    }
+    await Promise.all(waits);
+  }
+
+  /**
+   * A node (a board) drawn on its own at `scale`, as straight-alpha RGBA
+   * pixels, once its pictures and fonts have loaded. Null if the surface
+   * couldn't be made (too big for memory).
+   */
+  async renderPixels(doc: Doc, node: Node, scale: number): Promise<{ width: number; height: number; pixels: Uint8Array } | null> {
+    await this.prepare(doc, node);
+    const width = Math.max(1, Math.round(node.width * scale)), height = Math.max(1, Math.round(node.height * scale));
+    const surface = this.ck.MakeSurface(width, height);
+    if (!surface) return null;
+    const c = surface.getCanvas();
+    c.clear(this.ck.TRANSPARENT);
+    c.scale(scale, scale);
+    // Undo the node's place in the world so its box starts at (0, 0).
+    const parent = node.parentId ? doc.worldTransform(node.parentId) : ([1, 0, 0, 1, 0, 0] as Affine);
+    c.concat(this.matrix(multiply(invert(doc.worldTransform(node.id)), parent)));
+    this.drawNode(c, doc, node);
+    const info = { width, height, colorType: this.ck.ColorType.RGBA_8888, alphaType: this.ck.AlphaType.Unpremul, colorSpace: this.ck.ColorSpace.SRGB };
+    const pixels = c.readPixels(0, 0, info) as Uint8Array | null;
+    surface.delete();
+    return pixels ? { width, height, pixels } : null;
   }
 
   /** Shape text with CanvasKit's Paragraph, painted with `fg` (black when measuring). */

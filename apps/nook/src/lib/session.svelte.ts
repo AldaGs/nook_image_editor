@@ -62,6 +62,7 @@ document.addEventListener('visibilitychange', () => {
 
 /** The canvas engine once it has loaded, and its <canvas> (set by Canvas). */
 export const canvasRef: { engine: Engine | null; canvas: HTMLCanvasElement | null } = { engine: null, canvas: null };
+if (import.meta.env.DEV) (globalThis as Record<string, unknown>).nookCanvas = canvasRef;
 export const eyedropper = $state({ active: false });
 
 /** Wait for the next tap on the canvas and return the colour drawn there (null if cancelled). */

@@ -50,6 +50,11 @@ export interface Engine {
    */
   pickColor(): Promise<RGBA | null>;
   cancelPickColor(): void;
+  /**
+   * A board drawn on its own at `scale` as straight-alpha RGBA pixels (for
+   * PNG/JPG/WebP export), after its pictures and fonts have loaded.
+   */
+  renderBoard(id: string, scale: number): Promise<{ width: number; height: number; pixels: Uint8Array } | null>;
   /** A text block's widest line and height, wrapped at `width` (null: no wrapping). */
   measureLines(t: TextProps, width: number | null): { width: number; height: number };
   invalidate(): void;
@@ -130,6 +135,10 @@ export async function createEngine(canvas: HTMLCanvasElement, opts: EngineOption
     },
     setTheme(theme) { renderer.theme = theme; loop.invalidate(); },
     measureLines: (t, width) => renderer.measureLines(t, width),
+    async renderBoard(id, scale) {
+      const n = editor.doc.get(id);
+      return n ? renderer.renderPixels(editor.doc, n, scale) : null;
+    },
     pickColor() {
       picking?.(null);
       return new Promise(resolve => { picking = resolve; });

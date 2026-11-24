@@ -22,7 +22,7 @@
     <IconButton icon="redo" label="Redo" disabled={!ui.state.canRedo} onclick={() => editor.redo()} />
     <IconButton icon="smartphone" label="Safe zones (stories, reels)" active={ui.state.safeZones} onclick={() => editor.setSafeZones(!ui.state.safeZones)} />
     <IconButton icon="maximize" label="Zoom to fit" onclick={onFit} />
-    <IconButton icon="share" label="Export to PBC" onclick={onExport} />
+    <IconButton icon="share" label="Export" onclick={onExport} />
   </div>
 </header>
 
