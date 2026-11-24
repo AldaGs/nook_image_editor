@@ -45,7 +45,7 @@ pnpm build      # production PWA build in apps/nook/dist
 - `packages/scene-export`: Nook → `.pbc` (PBC project JSON).
 - `packages/ai`, `packages/storage`, `packages/tokens`: the AI switch and model loader, OPFS helpers, design tokens.
 
-**Status:** Stage 0 and Stage 1 are built. Not yet in Stage 1: snapping, resizing groups or multi-selections (move and rotate only), dragging layers into or out of frames, cached drawing (SkPicture), and checking the `.pbc` export against PBC's own loader.
+**Status:** see the ✅ and 🚧 marks in [MVP stages](#mvp-stages).
 
 ## MVP scope
 
@@ -165,10 +165,13 @@ The per-line background is the one new engine feature here. It needs the line bo
 
 There are seven stages, and each one ships a deployable build. Every "done when" is tested on your phone (iPhone Safari as the hardest case) unless it says desktop. Stage 3 is the first one you can use for real posts. Stage 4 proves the motion wedge.
 
-1. **Stage 0: Foundations.** Set up the pnpm workspace, port Heirloom's AI loader into `packages/ai`, and load CanvasKit in a Vite + Svelte PWA shell with tokens and fonts.
+1. ✅ **Stage 0: Foundations.** Set up the pnpm workspace, port Heirloom's AI loader into `packages/ai`, and load CanvasKit in a Vite + Svelte PWA shell with tokens and fonts.
    - Done when a CanvasKit surface draws and pans a rect at 60 fps on your phone, and the installed PWA reloads offline.
-2. **Stage 1: Canvas, selection and a PBC spike.** Build the camera (one-finger move, two-finger pan and pinch zoom, plus wheel and trackpad on desktop), frames, rect and ellipse, touch-friendly hit-testing (large hit areas, tap to cycle through overlapping layers), tap, multi-select mode and marquee, move, resize and rotate handles that stay a constant size on screen, the op log with undo/redo, and the layers drawer (rename, reorder, hide, lock, group). End with a thin `.pbc` export: frames, rects and groups.
+   - Built. Still to check on a real phone: 60 fps and an offline reload of the installed app.
+2. 🚧 **Stage 1: Canvas, selection and a PBC spike.** Build the camera (one finger on empty space or an unselected board pans, two fingers pan and pinch zoom, plus wheel, trackpad, middle-drag and Space-drag on desktop), frames, rect and ellipse, touch-friendly hit-testing (large hit areas, tap again to cycle through overlapping layers), tap, a multi-select mode (touch has no Shift) and marquee, move, resize and rotate handles that stay a constant size on screen, the op log with undo/redo, and the layers drawer (rename, reorder, hide, lock, group). Boards are selected by tapping their name label. End with a thin `.pbc` export: frames, rects, ellipses and groups.
    - Done when you can lay out 3 frames with 50 shapes on your phone, undo 100 steps, reload with nothing lost (autosave to OPFS), and open the result in PBC with names and groups intact.
+   - Built: everything above, with unit tests for undo, grouping, reorder, `doc.json` and the `.pbc` writer.
+   - Still to do: snapping (edges, centres, spacing), resizing groups and multi-selections (they move and rotate only), dragging layers into or out of frames, cached drawing (SkPicture), and opening an exported `.pbc` in PBC to confirm it loads (the writer follows `crates/core/src/node.rs` but hasn't been run through PBC's loader).
 3. **Stage 2: Paint and text.** Add the properties panel as a bottom sheet: multiple fills and strokes, solid and gradient fills with on-canvas gradient handles, opacity, all blend modes, and the four effects. Add text nodes (fonts, weight, size, line height, letter spacing, alignment, auto-width and fixed boxes) with on-canvas text editing that keeps the caret visible when the keyboard opens. Extend the `.pbc` export to fills, gradients and text.
    - Done when you can rebuild one of your real styleframes on your phone and it looks the same in PBC.
 4. **Stage 3: Images, social presets and export.** Add image import (photo picker, drag-drop and paste) as image fills, frame presets and safe zones, background removal, PNG/JPG/WebP export at 1x–4x per frame through the Web Share API, and `.nook` save/open.
