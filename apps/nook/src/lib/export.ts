@@ -1,3 +1,6 @@
+import { exportSvg } from '@nook/scene-export';
+import { usedAssets, type Doc } from '@nook/engine';
+import { loadAsset } from './assets';
 // Boards as image files: the engine draws each board's pixels, the browser
 // encodes them (CanvasKit here only encodes PNG). Files are numbered in board
 // order so a shared set lands as a carousel in the right order.
@@ -38,6 +41,30 @@ async function encode(px: { width: number; height: number; pixels: Uint8Array },
     ctx.putImageData(data, 0, 0);
   }
   return canvas.convertToBlob({ type: `image/${format}`, quality: 0.92 });
+}
+
+/** Boards as SVG files: pictures embedded, booleans as their merged outline. Returns the files and what SVG left out. */
+export async function boardSvgs(engine: Engine, boards: Node[], doc: Doc): Promise<{ files: File[]; report: string[] }> {
+  const urls = new Map<string, string>();
+  for (const id of usedAssets(doc)) {
+    const bytes = await loadAsset(id);
+    if (!bytes) continue;
+    const type = new Uint8Array(bytes, 0, 2)[0] === 0xff ? 'image/jpeg' : 'image/png';
+    urls.set(id, await new Promise<string>(res => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result as string);
+      fr.readAsDataURL(new Blob([bytes], { type }));
+    }));
+  }
+  const files: File[] = [];
+  const report = new Set<string>();
+  for (const [i, b] of boards.entries()) {
+    const out = exportSvg(doc, b.id, { outline: n => engine.outline(n.id), image: id => urls.get(id) });
+    out.report.forEach(r => report.add(r));
+    const prefix = boards.length > 1 ? `${String(i + 1).padStart(2, '0')} ` : '';
+    files.push(new File([out.text], `${prefix}${safeName(b.name)}.svg`, { type: 'image/svg+xml' }));
+  }
+  return { files, report: [...report] };
 }
 
 const safeName = (s: string) => s.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'Board';

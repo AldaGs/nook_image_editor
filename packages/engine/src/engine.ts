@@ -3,6 +3,7 @@
 // through this handle and the Editor.
 
 import { Camera } from './camera/camera.ts';
+import type { VectorPath } from './doc/shapes.ts';
 import { attachInput } from './input/router.ts';
 import { loadCanvasKit } from './render/canvaskit.ts';
 import { FrameLoop } from './render/frameloop.ts';
@@ -64,6 +65,8 @@ export interface Engine {
    * boards are left alone. Returns how many were flattened.
    */
   flatten(): number;
+  /** A layer's merged outline in its own space (booleans' result), for SVG export. */
+  outline(id: string): { contours: VectorPath[]; fillRule: 'nonzero' | 'evenodd' } | null;
   invalidate(): void;
   destroy(): void;
 }
@@ -146,6 +149,10 @@ export async function createEngine(canvas: HTMLCanvasElement, opts: EngineOption
     },
     setTheme(theme) { renderer.theme = theme; loop.invalidate(); },
     measureLines: (t, width) => renderer.measureLines(t, width),
+    outline(id) {
+      const n = editor.doc.get(id);
+      return n ? renderer.flattenContours(editor.doc, n) : null;
+    },
     flatten() {
       const done: string[] = [];
       editor.history.begin('Flatten');

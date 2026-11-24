@@ -4,7 +4,7 @@
   import { onMount } from 'svelte';
   import type { Engine, Node } from '@nook/engine';
   import Sheet from './Sheet.svelte';
-  import { boardFiles, canEncodeWebp, fitsLimit, type ImageFormat } from '../lib/export';
+  import { boardFiles, boardSvgs, canEncodeWebp, fitsLimit, type ImageFormat } from '../lib/export';
   import { shareFiles } from '../lib/files';
   import { openNook, saveNook } from '../lib/nookfile';
   import { loadAsset, putAsset } from '../lib/assets';
@@ -52,6 +52,21 @@
     message = null;
     try {
       await share(await boardFiles(engine, picked, scale, format));
+    } catch (e) {
+      message = e instanceof Error ? e.message : String(e);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function exportSvgs() {
+    if (!engine || !picked.length) return;
+    busy = true;
+    message = null;
+    try {
+      const { files, report } = await boardSvgs(engine, picked, editor.doc);
+      await share(files);
+      if (report.length) message = `Exported with notes:\n• ${report.join('\n• ')}`;
     } catch (e) {
       message = e instanceof Error ? e.message : String(e);
     } finally {
@@ -127,6 +142,7 @@
     <button type="button" class="primary" disabled={!count || busy || !engine} onclick={exportImages}>
       {busy ? 'Preparing…' : ready ? 'Share' : count > 1 ? `Share ${count} images` : count ? 'Share image' : 'Pick a board'}
     </button>
+    <button type="button" class="secondary" disabled={!count || busy || !engine} onclick={exportSvgs}>SVG (vector)</button>
     <button type="button" class="secondary" onclick={onExportPbc}>PBC scene (.pbc)</button>
   </section>
 
