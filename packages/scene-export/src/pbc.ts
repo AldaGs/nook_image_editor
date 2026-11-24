@@ -174,7 +174,9 @@ function toLayer(doc: Doc, n: Node, ctx: Ctx): unknown {
       };
     }
     case 'group':
+    case 'boolean':
     case 'frame': {
+      if (n.type === 'boolean') report.push(`"${n.name}": PBC has no boolean shapes yet, so its shapes were exported as a group, not merged.`);
       const role = motionRole(n);
       if (role === 'precomp') return precompLayer(doc, n, layer, angle, ctx);
       // A group's origin is its transform's translation; children stay relative to it.

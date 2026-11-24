@@ -3,11 +3,11 @@
 
 import { boundsOf, corners, invert, multiply, type Affine, type Point, type Rect } from '../geom/affine.ts';
 import type { Doc } from '../doc/document.ts';
-import type { Node } from '../doc/types.ts';
+import { isContainer, type Node } from '../doc/types.ts';
 
 /** The node's box in its own local space. */
 export function localBox(doc: Doc, node: Node): Rect {
-  if (node.type !== 'group') return { x: 0, y: 0, width: node.width, height: node.height };
+  if (!isContainer(node)) return { x: 0, y: 0, width: node.width, height: node.height };
   const pts = doc.children(node.id).flatMap(c => corners(c.transform, localBox(doc, c)));
   return boundsOf(pts) ?? { x: 0, y: 0, width: 0, height: 0 };
 }

@@ -10,7 +10,7 @@ import { pathBounds, scalePath, shapePath, shiftPath, type Anchor, type VectorPa
 import { splitAt } from './tools/points.ts';
 import { starterDoc } from '../doc/serialize.ts';
 import type { Op } from '../doc/ops.ts';
-import { isGradient, type GradientPaint, type ImagePaint, type Node, type NodeProp, type TextProps } from '../doc/types.ts';
+import { isContainer, isGradient, type BooleanOp, type GradientPaint, type ImagePaint, type Node, type NodeProp, type TextProps } from '../doc/types.ts';
 import { applyVector, invert, multiply, rotation, translation, type Affine, type Point, type Rect } from '../geom/affine.ts';
 import { localFor, worldBounds } from './bounds.ts';
 import { frameAt } from './hit.ts';
@@ -528,26 +528,40 @@ export class Editor {
   }
 
   /** Wrap the selection in a group, under the parent of the topmost selected node. */
-  group(): void {
+  group(): void { this.wrap('group'); }
+
+  /**
+   * Combine the selection into a boolean layer (non-destructive: the shapes stay
+   * inside and can still be edited). It takes the bottom shape's look.
+   */
+  combine(op: BooleanOp = 'union'): void {
+    if (this.topmostSelected().length < 2) return;
+    this.wrap('boolean', op);
+  }
+
+  private wrap(type: 'group' | 'boolean', op?: BooleanOp): void {
     const nodes = this.inDrawOrder(this.topmostSelected()).filter(n => n.type !== 'page');
     if (!nodes.length) return;
     const top = nodes[nodes.length - 1]!;
     const parentId = top.parentId;
     const sibs = this.doc.children(parentId);
     const after = sibs[sibs.indexOf(top) + 1];
-    const group = createNode('group', { name: 'Group', parentId, order: keyBetween(top.order, after?.order ?? null), width: 0, height: 0 });
+    const base = nodes[0]!;
+    const look = type === 'boolean' ? { booleanOp: op, fills: structuredClone(base.fills), strokes: structuredClone(base.strokes), name: OP_NAMES[op!] } : { name: 'Group' };
+    const group = createNode(type, { ...look, parentId, order: keyBetween(top.order, after?.order ?? null), width: 0, height: 0 });
     const orders = keysAfter(null, nodes.length);
     // Two steps in one undo entry: reparent maths needs the group to exist first.
-    this.history.begin('Group');
-    this.transact('Group', () => [{ t: 'add', node: group }]);
-    this.transact('Group', () => nodes.flatMap((n, i) => this.reparentOps(n, group.id, orders[i]!)));
+    const label = type === 'group' ? 'Group' : 'Combine';
+    this.history.begin(label);
+    this.transact(label, () => [{ t: 'add', node: group }]);
+    this.transact(label, () => nodes.flatMap((n, i) => this.reparentOps(n, group.id, orders[i]!)));
     this.history.commit();
     this.select([group.id]);
   }
 
   /** Dissolve selected groups, keeping their children where they are on screen. */
   ungroup(): void {
-    const groups = this.selectedNodes().filter(n => n.type === 'group');
+    const groups = this.selectedNodes().filter(isContainer);
     if (!groups.length) return;
     const freed: string[] = [];
     this.transact('Ungroup', () => groups.flatMap(g => {
@@ -621,7 +635,7 @@ export class Editor {
     const sx = from.width ? to.width / from.width : 1, sy = from.height ? to.height / from.height : 1;
     const inBox: Affine = [sx, 0, 0, sy, to.x - from.x * sx, to.y - from.y * sy];
     const m = multiply(toWorld, multiply(inBox, invert(toWorld)));
-    const leaves = (n: Node): Node[] => n.type === 'group' ? this.doc.children(n.id).flatMap(leaves) : [n];
+    const leaves = (n: Node): Node[] => isContainer(n) ? this.doc.children(n.id).flatMap(leaves) : [n];
     return nodes.flatMap(leaves).flatMap(n => {
       const w = multiply(m, this.doc.worldTransform(n.id));
       // ponytail: a rotated node under a non-uniform stretch would shear; it keeps its own angle and stretches along its own axes (as Figma does).
@@ -669,3 +683,5 @@ export class Editor {
 function isSmooth(a: Anchor): boolean {
   return (a.out.x !== 0 || a.out.y !== 0) && Math.abs(a.in.x + a.out.x) < 0.01 && Math.abs(a.in.y + a.out.y) < 0.01;
 }
+
+const OP_NAMES: Record<BooleanOp, string> = { union: 'Union', subtract: 'Subtract', intersect: 'Intersect', exclude: 'Exclude' };

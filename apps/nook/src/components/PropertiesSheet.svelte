@@ -30,7 +30,7 @@
   const label = (m: string) => m.replace(/[A-Z]/g, c => ` ${c.toLowerCase()}`).replace(/^./, c => c.toUpperCase());
 
   /** Live while dragging (done = false), one undo step when done. */
-  function edit(prop: 'opacity' | 'blendMode' | 'fills' | 'strokes' | 'effects' | 'width' | 'height' | 'motion' | 'pointCount' | 'innerRatio', value: unknown, done = true) {
+  function edit(prop: 'opacity' | 'blendMode' | 'fills' | 'strokes' | 'effects' | 'width' | 'height' | 'motion' | 'pointCount' | 'innerRatio' | 'booleanOp', value: unknown, done = true) {
     editor.preview(ids, prop, value);
     if (done) editor.commitEdit();
   }
@@ -118,6 +118,20 @@
         <p class="hint">{topLevel ? 'Each board is a comp in PBC.' : 'Precomps keep blend modes and effects, and clip boards. Layer groups stay editable in place.'}</p>
         <textarea aria-label="Motion notes" rows="2" placeholder="Notes for the animator" value={m.notes ?? ''}
           onchange={e => edit('motion', { ...m, notes: e.currentTarget.value.trim() || undefined })}></textarea>
+      </section>
+    {/if}
+
+    {#if n.type === 'boolean'}
+      <section>
+        <h3>Combine</h3>
+        <div class="row">
+          <select aria-label="Boolean operation" value={n.booleanOp ?? 'union'} onchange={e => edit('booleanOp', e.currentTarget.value)}>
+            <option value="union">Union</option>
+            <option value="subtract">Subtract (from the bottom shape)</option>
+            <option value="intersect">Intersect</option>
+            <option value="exclude">Exclude overlap</option>
+          </select>
+        </div>
       </section>
     {/if}
 

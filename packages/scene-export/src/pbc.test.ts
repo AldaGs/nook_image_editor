@@ -160,3 +160,25 @@ test('polygons, stars and lines become Vector paths at the node origin', () => {
   assert.ok(l.stroke);
   assert.ok(!report.some(r => r.includes('Star') || r.includes('Line')));
 });
+
+test('combining shapes makes a boolean layer with the bottom look; PBC gets its shapes as a group', () => {
+  const ed = new Editor(starterDoc());
+  const board = ed.doc.children(ed.pageId)[0]!;
+  const a = createNode('rect', { parentId: board.id, order: 'y', name: 'A', transform: [1, 0, 0, 1, 0, 0], width: 100, height: 100 });
+  a.fills = [solid({ r: 1, g: 0, b: 0, a: 1 })];
+  const b = createNode('ellipse', { parentId: board.id, order: 'z', name: 'B', transform: [1, 0, 0, 1, 50, 50], width: 100, height: 100 });
+  ed.transact('Add', () => [{ t: 'add', node: a }, { t: 'add', node: b }]);
+  ed.select([a.id, b.id]);
+  ed.combine('subtract');
+  const bool = ed.doc.get(ed.selection[0]!)!;
+  assert.equal(bool.type, 'boolean');
+  assert.equal(bool.booleanOp, 'subtract');
+  assert.deepEqual(bool.fills, a.fills);
+  assert.deepEqual(ed.doc.children(bool.id).map(n => n.name), ['A', 'B']);
+  const { text, report } = exportPbc(ed.doc, ed.pageId);
+  const layer = JSON.parse(text).project.comps['1'].root.children.at(-1);
+  assert.deepEqual(layer.children.map((c: { name: string }) => c.name), ['A', 'B']);
+  assert.ok(report.some(r => r.includes('Subtract') && r.includes('group')));
+  ed.undo();
+  assert.equal(ed.doc.get(a.id)!.parentId, board.id);
+});

@@ -14,7 +14,7 @@
     onToggleCollapsed: () => void;
   } = $props();
 
-  const TYPE_ICON: Partial<Record<Node['type'], IconName>> = { frame: 'frame', group: 'group', rect: 'square', ellipse: 'circle' };
+  const TYPE_ICON: Partial<Record<Node['type'], IconName>> = { frame: 'frame', group: 'group', boolean: 'combine', rect: 'square', ellipse: 'circle' };
 
   let renaming = $state(false);
   let draft = $state('');

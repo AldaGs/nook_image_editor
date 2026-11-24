@@ -188,7 +188,7 @@ export class Renderer {
     c.save();
     c.concat(this.matrix(n.transform));
     const fx = n.effects.filter(e => e.visible);
-    const outline = this.outline(n);
+    const outline = this.outline(n, doc);
 
     for (const e of fx) {
       if (e.kind !== 'backgroundBlur' || !outline) continue;
@@ -230,7 +230,8 @@ export class Renderer {
   }
 
   /** The node's own shape, for fills, strokes, clipping and background blur. */
-  private outline(n: Node): SkPath | null {
+  private outline(n: Node, doc?: Doc): SkPath | null {
+    if (n.type === 'boolean') return doc ? this.combined(doc, n) : null;
     const b = new this.ck.PathBuilder();
     const rect = this.ck.XYWHRect(0, 0, n.width, n.height);
     switch (n.type) {
@@ -266,6 +267,31 @@ export class Renderer {
         return null;
     }
     return b.detachAndDelete();
+  }
+
+  /**
+   * A boolean layer's shape: its visible children's outlines in its space,
+   * folded bottom to top with its operation. Groups inside count as the union
+   * of their shapes; text has no outline yet and is skipped.
+   */
+  private combined(doc: Doc, n: Node): SkPath | null {
+    const P = this.ck.PathOp;
+    const op = { union: P.Union, subtract: P.Difference, intersect: P.Intersect, exclude: P.XOR }[n.booleanOp ?? 'union'];
+    let acc: SkPath | null = null;
+    for (const k of doc.children(n.id)) {
+      if (!k.visible) continue;
+      const own = k.type === 'group' ? this.combined(doc, { ...k, booleanOp: 'union' }) : this.outline(k, doc);
+      if (!own) continue;
+      const placed = (new this.ck.PathBuilder().addPath(own, this.matrix(k.transform)) as unknown as { detachAndDelete(): SkPath }).detachAndDelete();
+      own.delete();
+      if (!acc) { acc = placed; continue; }
+      const next: SkPath | null = this.ck.Path.MakeFromOp(acc, placed, op);
+      acc.delete();
+      placed.delete();
+      acc = next;
+      if (!acc) return null;
+    }
+    return acc;
   }
 
   // ── Images ───────────────────────────────────────────────────

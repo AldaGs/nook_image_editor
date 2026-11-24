@@ -37,7 +37,7 @@ export function hitStack(doc: Doc, pageId: string, p: Point, slop = 0): Node[] {
         if (n.clipContent && !inside(doc, n, p, slop)) continue;
         visit(n.id, null);
         if (inside(doc, n, p, slop)) out.push(n);
-      } else if (n.type === 'group') {
+      } else if (n.type === 'group' || n.type === 'boolean') {
         visit(n.id, groupRoot ?? n);
       } else if (inside(doc, n, p, slop)) {
         const pick = groupRoot ?? n;

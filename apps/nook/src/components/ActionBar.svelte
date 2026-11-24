@@ -10,7 +10,7 @@
   const one = $derived(selected.length === 1 ? selected[0] : null);
   const hasPicture = $derived(!!one?.fills.some(f => f.kind === 'image'));
   const pathLike = $derived(!!one && ['vector', 'polygon', 'star', 'line'].includes(one.type));
-  const hasGroup = $derived(selected.some(n => n.type === 'group'));
+  const hasGroup = $derived(selected.some(n => n.type === 'group' || n.type === 'boolean'));
 </script>
 
 {#if ui.state.tool === 'pen'}
@@ -46,6 +46,9 @@
     <IconButton icon="arrowUp" label="Bring forward (])" disabled={!one} onclick={() => one && editor.reorder(one.id, 1)} />
     <IconButton icon="arrowDown" label="Send backward ([)" disabled={!one} onclick={() => one && editor.reorder(one.id, -1)} />
     <IconButton icon="group" label="Group (Ctrl+G)" onclick={() => editor.group()} />
+    {#if selected.length > 1}
+      <IconButton icon="combine" label="Combine shapes" onclick={() => editor.combine()} />
+    {/if}
     <IconButton icon="ungroup" label="Ungroup (Ctrl+Shift+G)" disabled={!hasGroup} onclick={() => editor.ungroup()} />
     {#if hasPicture}
       <IconButton icon="bookmarkPlus" label="Save to stickers" onclick={async () => { if (one && await saveSticker(one)) ui.error = `Saved "${one.name}" to your stickers.`; }} />

@@ -40,6 +40,7 @@ Updated: Nov 24, 2026 (Nook Stage 5).
 | --- | --- | --- |
 | A board's own strokes and effects, or a rotated board | Not exported, because a comp has no strokes, effects or rotation. | Probably nothing: in Nook, keep that styling on a layer inside the board. |
 
+| Boolean shapes (union, subtract, intersect, exclude) | Exported as a group of the separate shapes, not merged. | A boolean shape group (path ops at render time), or Nook writes the merged outline as one Vector path once flatten can produce multi-contour paths. |
 | Rounded corners on a nested board's clip | The precomp's mask is square. | Nothing new: Nook could write the mask as a rounded Vector path. To do on the Nook side. |
 | Image fills | Drawn as a gray box. | PBC footage is a file path (`Asset.path`, used as given). A `.pbc` that travels with its pictures needs asset paths resolved beside the project file; then Nook can export a folder or zip. |
 | Motion notes | Written to the layer's `tags` as `note: …` (the root layer's for a board). | A notes field PBC shows, if wanted. |

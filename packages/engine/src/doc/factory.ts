@@ -29,6 +29,7 @@ export function createNode(type: NodeType, props: Partial<Node> & { parentId: st
   };
   if (type === 'rect' || type === 'frame') base.cornerRadius ??= 0;
   if (type === 'polygon') base.pointCount ??= 3;
+  if (type === 'boolean') base.booleanOp ??= 'union';
   if (type === 'vector') base.path ??= { anchors: [], closed: false };
   if (type === 'star') { base.pointCount ??= 5; base.innerRatio ??= 0.4; }
   if (type === 'line' || type === 'vector') {

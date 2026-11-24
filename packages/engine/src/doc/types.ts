@@ -86,6 +86,12 @@ export interface TextBackground {
   tail?: { show: boolean; at?: number; size?: number };
 }
 
+/** How a boolean layer combines its children, bottom first: subtract takes the rest away from the bottom one. */
+export type BooleanOp = 'union' | 'subtract' | 'intersect' | 'exclude';
+
+/** Layers that hold others: groups, and booleans (which draw their children's combined shape instead). */
+export const isContainer = (n: { type: NodeType }): boolean => n.type === 'group' || n.type === 'boolean';
+
 export interface MotionHints { role?: 'comp' | 'precomp' | 'layer'; notes?: string }
 
 export interface Node {
@@ -108,6 +114,7 @@ export interface Node {
   pointCount?: number;    // polygon sides, star points
   innerRatio?: number;    // star: inner radius / outer, 0–1
   path?: VectorPath;      // vector: in the node's own space, fitted to its box
+  booleanOp?: BooleanOp;  // boolean: how its children's shapes combine
   clipContent?: boolean;  // frame
   text?: TextProps;       // text
   motion?: MotionHints;   // PBC/AE export hints (stage 4)
