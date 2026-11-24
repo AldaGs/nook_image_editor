@@ -35,14 +35,14 @@ pnpm build      # production PWA build in apps/nook/dist
 
 **Code map**
 
-- `apps/nook/src/components/`: one Svelte component per file. `Canvas` hosts the engine; `TopBar`, `Toolbar` and `ActionBar` are the phone controls; `LayersPanel`/`LayerRow`, `PresetSheet`/`Sheet`, `FrameLabels`, `ViewInfo`, `Icon`/`IconButton`.
-- `apps/nook/src/lib/`: `session` (the editor, its reactive state and autosave), `shortcuts`, `files` (share sheet or download), `theme`.
+- `apps/nook/src/components/`: one Svelte component per file. `Canvas` hosts the engine; `TopBar`, `Toolbar` and `ActionBar` are the phone controls; `PropertiesSheet`/`PaintRow` are the Design sheet; `TextInput` is the hidden textarea for typing on the canvas; `LayersPanel`/`LayerRow`, `PresetSheet`/`Sheet`, `FrameLabels`, `ViewInfo`, `Icon`/`IconButton`.
+- `apps/nook/src/lib/`: `session` (the editor, its reactive state and autosave; `nook` in the dev console), `fonts` (the bundled font families, loaded on first use), `shortcuts`, `files` (share sheet or download), `theme`.
 - `packages/engine/src/`:
   - `doc/`: node types, fractional order keys, the document store, ops, undo history, factories and `doc.json`.
   - `editor/`: the `Editor` (selection and edits), hit-testing, bounds, handles, and `tools/` (select, shape).
   - `geom/`: affine matrix maths. `camera/`: view maths. `input/`: routes fingers, pen, mouse and wheel.
   - `render/`: CanvasKit loader, renderer, frame loop. `engine.ts` wires them to one canvas.
-- `packages/scene-export`: Nook → `.pbc` (PBC project JSON).
+- `packages/scene-export`: Nook → `.pbc` (PBC project JSON), with a report of anything PBC can't show.
 - `packages/ai`, `packages/storage`, `packages/tokens`: the AI switch and model loader, OPFS helpers, design tokens.
 
 **Status:** see the ✅ and 🚧 marks in [MVP stages](#mvp-stages).
@@ -173,8 +173,14 @@ There are seven stages, and each one ships a deployable build. Every "done when"
    - Built: everything above, plus snapping while moving to edges, centres and equal gaps (Alt turns it off), resizing groups and multi-selections (children change size, never get scaled transforms), dragging layers into or out of frames, and cached drawing (one SkPicture per board, re-recorded only when something inside it changes). Unit tests cover undo, grouping, reorder, drop-into-frame, group resize, snapping, change tracking, `doc.json` and the `.pbc` writer.
    - Checked in PBC: exported boards with rects, ellipses, rotation, groups and a nested frame pass `motion check` with nothing dropped, and `motion preview` draws every layer where Nook puts it.
    - Still to check on a real phone: the "done when" run (3 frames, 50 shapes, 100 undos, reload) and opening a phone-made export in PBC.
-3. **Stage 2: Paint and text.** Add the properties panel as a bottom sheet: multiple fills and strokes, solid and gradient fills with on-canvas gradient handles, opacity, all blend modes, and the four effects. Add text nodes (fonts, weight, size, line height, letter spacing, alignment, auto-width and fixed boxes) with on-canvas text editing that keeps the caret visible when the keyboard opens. Extend the `.pbc` export to fills, gradients and text.
+3. ✅ **Stage 2: Paint and text.** Add the properties panel as a bottom sheet: multiple fills and strokes, solid and gradient fills with on-canvas gradient handles, opacity, all blend modes, and the four effects. Add text nodes (fonts, weight, size, line height, letter spacing, alignment, auto-width and fixed boxes) with on-canvas text editing that keeps the caret visible when the keyboard opens. Extend the `.pbc` export to fills, gradients and text.
    - Done when you can rebuild one of your real styleframes on your phone and it looks the same in PBC.
+   - Built: the Design sheet (layer opacity and blend; stacks of solid, linear and radial fills; strokes inside, centre or outside; drop shadow, inner shadow, layer blur, background blur), on-canvas gradient end points, text layers in six bundled families with auto-width, auto-height and fixed boxes, typing on the canvas through a hidden textarea (iOS keyboard, IME, caret kept above the keyboard), and the `.pbc` export of all of it that PBC can hold.
+   - PBC first: gradients needed a format change, so PBC gained an optional `gradient` on layers (`_pbc` commit "Gradient fills"), drawn by its preview and export; older files load unchanged.
+   - Checked in PBC: a test board (gradient sky, radial sun with drop shadow, blurred blob, rotated multiply bar, gradient Bebas Neue title, wrapped Montserrat subtitle) passes `motion check` and renders in `motion preview` matching Nook.
+   - Not in PBC yet, so listed in the export report: inner shadow, background blur, more than one fill or stroke, inside/outside strokes, shadow spread, fill blend modes.
+   - Known PBC issue: with a variable font installed (Montserrat here), PBC draws weights 600–900 all as the heaviest cut, so heavier text runs wider there than in Nook.
+   - Still to check on a real phone: the styleframe rebuild, and the keyboard and caret behaviour on iPhone Safari.
 4. **Stage 3: Images, social presets and export.** Add image import (photo picker, drag-drop and paste) as image fills, frame presets and safe zones, background removal, PNG/JPG/WebP export at 1x–4x per frame through the Web Share API, and `.nook` save/open.
    - Done when you can make and post a real IG carousel from your phone. **First usable release.**
 5. **Stage 4: Motion export.** Add a `motion` panel on frames and groups (comp/precomp/layer role, notes) and finish `scene-export` to `.pbc`: layers, transforms, gradients, text and effects, with an export report listing anything PBC can't represent.
