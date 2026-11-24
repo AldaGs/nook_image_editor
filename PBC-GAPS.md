@@ -4,7 +4,7 @@ Things Nook can design that a `.pbc` can't carry or PBC can't draw yet. PBC impl
 
 Only items marked **Important** affect whether a board looks the same in PBC in everyday use. The rest can wait until PBC gets to them.
 
-Updated: Nov 24, 2026 (end of Nook Stage 2).
+Updated: Nov 24, 2026 (Nook Stage 4).
 
 ## Important
 
@@ -36,9 +36,11 @@ Updated: Nov 24, 2026 (end of Nook Stage 2).
 
 | Gap | What happens now | What PBC needs |
 | --- | --- | --- |
-| A frame inside a frame | Exported as a group plus a background rectangle, without clipping. | Nothing new: Nook's export can use PBC's existing `mask` to clip to the frame. To do on the Nook side. |
-| Blend mode or effects on a group | PBC applies them to a layer's own artwork, not to its children, so they do nothing on a group. | A group that composites its children as one image (like a precomp), or Nook exports such groups as precomps (Stage 4's motion role). |
 | A board's own strokes and effects, or a rotated board | Not exported, because a comp has no strokes, effects or rotation. | Probably nothing: in Nook, keep that styling on a layer inside the board. |
+
+| Rounded corners on a nested board's clip | The precomp's mask is square. | Nothing new: Nook could write the mask as a rounded Vector path. To do on the Nook side. |
+| Image fills | Drawn as a gray box. | PBC footage is a file path (`Asset.path`, used as given). A `.pbc` that travels with its pictures needs asset paths resolved beside the project file; then Nook can export a folder or zip. |
+| Motion notes | Written to the layer's `tags` as `note: …` (the root layer's for a board). | A notes field PBC shows, if wanted. |
 
 ## Text
 

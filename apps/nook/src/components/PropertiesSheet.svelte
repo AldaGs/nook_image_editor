@@ -9,6 +9,7 @@
   import Sheet from './Sheet.svelte';
   import { editor, ui } from '../lib/session.svelte';
   import { FONTS, weightsOf } from '../lib/fonts';
+  import { motionRole } from '@nook/scene-export';
 
   let { onClose, onEditGradient }: {
     onClose: () => void;
@@ -92,12 +93,13 @@
         <div class="row">
           <select aria-label="Motion role" value={m.role ?? ''}
             onchange={e => edit('motion', { ...m, role: (e.currentTarget.value || undefined) as MotionHints['role'] })}>
-            <option value="">Auto ({topLevel ? 'comp' : n.type === 'group' ? 'layer group' : 'precomp'})</option>
+            <option value="">Auto ({topLevel ? 'comp' : motionRole({ ...n, motion: undefined }) === 'precomp' ? 'precomp' : 'layer group'})</option>
             {#if topLevel}<option value="comp">Comp</option>{/if}
             <option value="precomp">Precomp</option>
             {#if !topLevel}<option value="layer">Layer group</option>{/if}
           </select>
         </div>
+        <p class="hint">{topLevel ? 'Each board is a comp in PBC.' : 'Precomps keep blend modes and effects, and clip boards. Layer groups stay editable in place.'}</p>
         <textarea aria-label="Motion notes" rows="2" placeholder="Notes for the animator" value={m.notes ?? ''}
           onchange={e => edit('motion', { ...m, notes: e.currentTarget.value.trim() || undefined })}></textarea>
       </section>
@@ -231,5 +233,6 @@
   section { min-width: 0; }
   .full { flex-basis: 100%; }
   textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; color: inherit; padding: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; resize: vertical; user-select: text; -webkit-user-select: text; }
+  .hint { margin: 0 0 6px; font-size: 12px; color: var(--text-muted); }
   .empty { padding: var(--space); color: var(--text-muted); }
 </style>

@@ -8,6 +8,7 @@ export { toFile, fromFile, starterDoc, usedAssets, type DocFile } from './doc/se
 export type { ImagePaint, TextProps, Node, NodeType, RGBA, Paint, SolidPaint, GradientPaint, GradientStop, Stroke, Effect, Shadow, Blur, BlendMode, MotionHints } from './doc/types.ts';
 export { solid, linear, newEffect, paintColor, isGradient, BLEND_MODES } from './doc/types.ts';
 export type { RendererTheme } from './render/renderer.ts';
+export { localBox } from './editor/bounds.ts';
 export * as affine from './geom/affine.ts';
 export type { Affine, Point, Rect } from './geom/affine.ts';
 export { toHex, parseHex, rgbToHsv, hsvToRgb, documentColors, type HSVA } from './doc/color.ts';
