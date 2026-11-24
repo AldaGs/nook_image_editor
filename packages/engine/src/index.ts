@@ -10,7 +10,7 @@ export { solid, linear, newEffect, paintColor, isGradient, isContainer, BLEND_MO
 export type { BooleanOp } from './doc/types.ts';
 export type { RendererTheme } from './render/renderer.ts';
 export { localBox } from './editor/bounds.ts';
-export { shapePath, pathBounds, type Anchor, type VectorPath } from './doc/shapes.ts';
+export { shapePath, pathBounds, contoursOf, contoursFromCmds, type Anchor, type VectorPath } from './doc/shapes.ts';
 export * as affine from './geom/affine.ts';
 export type { Affine, Point, Rect } from './geom/affine.ts';
 export { toHex, parseHex, rgbToHsv, hsvToRgb, documentColors, type HSVA } from './doc/color.ts';

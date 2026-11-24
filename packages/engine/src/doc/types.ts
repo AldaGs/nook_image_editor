@@ -114,6 +114,8 @@ export interface Node {
   pointCount?: number;    // polygon sides, star points
   innerRatio?: number;    // star: inner radius / outer, 0–1
   path?: VectorPath;      // vector: in the node's own space, fitted to its box
+  subpaths?: VectorPath[]; // vector: more contours of the same shape (holes, separate pieces), from flatten
+  fillRule?: 'nonzero' | 'evenodd'; // vector with subpaths: which overlaps are filled (default nonzero)
   booleanOp?: BooleanOp;  // boolean: how its children's shapes combine
   clipContent?: boolean;  // frame
   text?: TextProps;       // text

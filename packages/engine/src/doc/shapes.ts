@@ -37,6 +37,74 @@ export function shapePath(n: Node): VectorPath | null {
   }
 }
 
+/** Every contour of the node's shape: a vector's path and its subpaths, or the one path of a polygon, star or line. */
+export function contoursOf(n: Node): VectorPath[] {
+  if (n.type === 'vector') return [n.path, ...(n.subpaths ?? [])].filter((p): p is VectorPath => !!p && p.anchors.length > 0);
+  const p = shapePath(n);
+  return p ? [p] : [];
+}
+
+/** Bounds of several contours together. */
+export function contoursBounds(paths: VectorPath[]): { x: number; y: number; width: number; height: number } {
+  const pts = paths.flatMap(flatten);
+  if (!pts.length) return { x: 0, y: 0, width: 0, height: 0 };
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  const x = Math.min(...xs), y = Math.min(...ys);
+  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
+}
+
+/** Inside a shape made of several contours: an odd number of closed contours contain the point (holes), or near any outline. */
+export function contoursContain(paths: VectorPath[], q: Point, slop: number): boolean {
+  let count = 0;
+  for (const p of paths) {
+    if (pathContains({ ...p, closed: false }, q, slop)) return true;
+    if (p.closed && pathContains(p, q, 0)) count++;
+  }
+  return count % 2 === 1;
+}
+
+/**
+ * Contours from Skia path commands (CanvasKit's toCmds: verb, then points).
+ * Quads become cubics exactly; conics (ellipse arcs) become the usual cubic
+ * approximation. A contour that returns to its start drops the duplicate point.
+ */
+export function contoursFromCmds(cmds: ArrayLike<number>, verbs: { move: number; line: number; quad: number; conic: number; cubic: number; close: number }): VectorPath[] {
+  const out: VectorPath[] = [];
+  let cur: Anchor[] | null = null;
+  const zero = () => ({ x: 0, y: 0 });
+  const end = (closed: boolean) => {
+    if (!cur || !cur.length) { cur = null; return; }
+    const first = cur[0]!, last = cur[cur.length - 1]!;
+    if (cur.length > 1 && Math.hypot(first.p.x - last.p.x, first.p.y - last.p.y) < 1e-6) {
+      first.in = last.in;
+      cur.pop();
+      closed = true;
+    }
+    out.push({ anchors: cur, closed });
+    cur = null;
+  };
+  const cubicTo = (c1: Point, c2: Point, p: Point) => {
+    const prev = cur![cur!.length - 1]!;
+    prev.out = { x: c1.x - prev.p.x, y: c1.y - prev.p.y };
+    cur!.push({ p, in: { x: c2.x - p.x, y: c2.y - p.y }, out: zero() });
+  };
+  for (let i = 0; i < cmds.length;) {
+    const v = cmds[i++]!;
+    const pt = () => { const p = { x: cmds[i]!, y: cmds[i + 1]! }; i += 2; return p; };
+    if (v === verbs.move) { end(false); cur = [{ p: pt(), in: zero(), out: zero() }]; }
+    else if (v === verbs.line) cur!.push({ p: pt(), in: zero(), out: zero() });
+    else if (v === verbs.quad || v === verbs.conic) {
+      const p0 = cur![cur!.length - 1]!.p, c = pt(), p = pt();
+      const w = v === verbs.conic ? cmds[i++]! : 1;
+      const k = (4 * w) / (3 * (1 + w)); // 2/3 for a quad
+      cubicTo({ x: p0.x + (c.x - p0.x) * k, y: p0.y + (c.y - p0.y) * k }, { x: p.x + (c.x - p.x) * k, y: p.y + (c.y - p.y) * k }, p);
+    } else if (v === verbs.cubic) { const c1 = pt(), c2 = pt(); cubicTo(c1, c2, pt()); }
+    else if (v === verbs.close) end(true);
+  }
+  end(false);
+  return out;
+}
+
 /** The cubic segments, in order: [p0, c1, c2, p3]. A closed path includes the one back to the start. */
 export function segments(path: VectorPath): [Point, Point, Point, Point][] {
   const a = path.anchors, out: [Point, Point, Point, Point][] = [];

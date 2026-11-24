@@ -11,7 +11,7 @@
 // in the report, never guessed.
 
 import {
-  affine, estimateText, localBox, paintColor, shapePath,
+  affine, contoursOf, estimateText, localBox, paintColor,
   type Doc, type Effect, type Node, type Point, type RGBA, type TextProps,
 } from '@nook/engine';
 
@@ -120,15 +120,20 @@ function toLayer(doc: Doc, n: Node, ctx: Ctx): unknown {
     case 'line':
     case 'vector': {
       // Path points are in the node's own space, so the layer sits at its origin.
-      const path = shapePath(n)!;
       const v = (p: { x: number; y: number }) => k({ x: round(p.x), y: round(p.y) });
       const o = affine.apply(n.transform, { x: 0, y: 0 });
+      const vector = (path: ReturnType<typeof contoursOf>[number]) =>
+        ({ Vector: { path: { anchors: path.anchors.map(a => ({ point: v(a.p), in_tan: v(a.in), out_tan: v(a.out) })), closed: path.closed } } });
+      const [first, ...rest] = contoursOf(n);
+      const look = { ...paint(n, { x: 0, y: 0 }, report), stroke: stroke(n, report) };
+      if (!first) return { ...layer, hidden: true };
+      if (!rest.length) return { ...layer, transform: transform(o.x, o.y, angle, n.opacity), shape: vector(first), ...look };
+      // PBC paths have one contour: each becomes its own layer in a group (holes fill in).
+      report.push(`"${n.name}" has ${rest.length + 1} contours; PBC paths have one each, so they're separate layers in a group and any holes are filled.`);
       return {
         ...layer,
         transform: transform(o.x, o.y, angle, n.opacity),
-        shape: { Vector: { path: { anchors: path.anchors.map(a => ({ point: v(a.p), in_tan: v(a.in), out_tan: v(a.out) })), closed: path.closed } } },
-        ...paint(n, { x: 0, y: 0 }, report),
-        stroke: stroke(n, report),
+        children: [first, ...rest].map((p, i) => ({ ...baseLayer(ctx.id(), `${n.name} ${i + 1}`), transform: transform(0, 0, 0, 1), shape: vector(p), ...look })),
       };
     }
     case 'rect':

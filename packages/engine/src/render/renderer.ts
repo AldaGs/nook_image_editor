@@ -14,7 +14,7 @@ import { worldBounds, worldCorners } from '../editor/bounds.ts';
 import type { Editor } from '../editor/editor.ts';
 import { gradientHandles, handlesFor, selectionQuad } from '../editor/handles.ts';
 import { STORY_SAFE_ZONE, isStoryShaped } from '../doc/factory.ts';
-import { shapePath } from '../doc/shapes.ts';
+import { contoursFromCmds, contoursOf, type VectorPath } from '../doc/shapes.ts';
 
 export interface RendererTheme {
   background: RGBA; // the area around the boards
@@ -248,25 +248,47 @@ export class Renderer {
       case 'star':
       case 'line':
       case 'vector': {
-        const path = shapePath(n);
-        if (!path?.anchors.length) { b.delete(); return null; }
-        path.anchors.forEach((a, i) => {
-          if (!i) { b.moveTo(a.p.x, a.p.y); return; }
-          const prev = path.anchors[i - 1]!;
-          b.cubicTo(prev.p.x + prev.out.x, prev.p.y + prev.out.y, a.p.x + a.in.x, a.p.y + a.in.y, a.p.x, a.p.y);
-        });
-        if (path.closed) {
-          const last = path.anchors.at(-1)!, first = path.anchors[0]!;
-          b.cubicTo(last.p.x + last.out.x, last.p.y + last.out.y, first.p.x + first.in.x, first.p.y + first.in.y, first.p.x, first.p.y);
-          b.close();
-        }
-        break;
+        const paths = contoursOf(n);
+        if (!paths.length) { b.delete(); return null; }
+        for (const path of paths) this.addContour(b, path);
+        const out = b.detachAndDelete();
+        if (n.fillRule === 'evenodd') out.setFillType(this.ck.FillType.EvenOdd);
+        return out;
       }
       default:
         b.delete();
         return null;
     }
     return b.detachAndDelete();
+  }
+
+  /** One contour onto a path builder: a move, then a cubic per segment, closed if the path is. */
+  private addContour(b: ReturnType<CanvasKit['PathBuilder']['prototype']['moveTo']>, path: VectorPath): void {
+    path.anchors.forEach((a, i) => {
+      if (!i) { b.moveTo(a.p.x, a.p.y); return; }
+      const prev = path.anchors[i - 1]!;
+      b.cubicTo(prev.p.x + prev.out.x, prev.p.y + prev.out.y, a.p.x + a.in.x, a.p.y + a.in.y, a.p.x, a.p.y);
+    });
+    if (path.closed && path.anchors.length > 1) {
+      const last = path.anchors.at(-1)!, first = path.anchors[0]!;
+      b.cubicTo(last.p.x + last.out.x, last.p.y + last.out.y, first.p.x + first.in.x, first.p.y + first.in.y, first.p.x, first.p.y);
+      b.close();
+    }
+  }
+
+  /**
+   * A layer's merged outline as path contours in its own space, for flatten:
+   * a boolean's result, a group's union, or a shape's own outline. Null for
+   * text and pictures-only layers.
+   */
+  flattenContours(doc: Doc, n: Node): { contours: VectorPath[]; fillRule: 'nonzero' | 'evenodd' } | null {
+    const sk = n.type === 'group' ? this.combined(doc, { ...n, booleanOp: 'union' }) : this.outline(n, doc);
+    if (!sk) return null;
+    const ck = this.ck;
+    const contours = contoursFromCmds(sk.toCmds(), { move: ck.MOVE_VERB, line: ck.LINE_VERB, quad: ck.QUAD_VERB, conic: ck.CONIC_VERB, cubic: ck.CUBIC_VERB, close: ck.CLOSE_VERB });
+    const fillRule = sk.getFillType() === ck.FillType.EvenOdd ? 'evenodd' : 'nonzero';
+    sk.delete();
+    return { contours, fillRule };
   }
 
   /**

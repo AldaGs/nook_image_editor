@@ -3,12 +3,14 @@
   import IconButton from './IconButton.svelte';
   import { editor, ui } from '../lib/session.svelte';
   import { saveSticker } from '../lib/stickers';
+  import { canvasRef } from '../lib/session.svelte';
 
   let { onDesign }: { onDesign: () => void } = $props();
 
   const selected = $derived.by(() => { ui.state.version; return editor.selectedNodes(); });
   const one = $derived(selected.length === 1 ? selected[0] : null);
   const hasPicture = $derived(!!one?.fills.some(f => f.kind === 'image'));
+  const flattenable = $derived(selected.some(n => n.type === 'boolean' || n.type === 'group' || (['rect', 'ellipse', 'polygon', 'star', 'line'].includes(n.type) && !n.fills.some(f => f.kind === 'image'))));
   const pathLike = $derived(!!one && ['vector', 'polygon', 'star', 'line'].includes(one.type));
   const hasGroup = $derived(selected.some(n => n.type === 'group' || n.type === 'boolean'));
 </script>
@@ -48,6 +50,9 @@
     <IconButton icon="group" label="Group (Ctrl+G)" onclick={() => editor.group()} />
     {#if selected.length > 1}
       <IconButton icon="combine" label="Combine shapes" onclick={() => editor.combine()} />
+    {/if}
+    {#if flattenable}
+      <IconButton icon="flatten" label="Flatten to path" onclick={() => canvasRef.engine?.flatten()} />
     {/if}
     <IconButton icon="ungroup" label="Ungroup (Ctrl+Shift+G)" disabled={!hasGroup} onclick={() => editor.ungroup()} />
     {#if hasPicture}

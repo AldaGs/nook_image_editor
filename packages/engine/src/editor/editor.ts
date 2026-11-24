@@ -6,7 +6,7 @@ import { Doc } from '../doc/document.ts';
 import { History } from '../doc/history.ts';
 import { keyBetween, keysAfter } from '../doc/fractional.ts';
 import { createNode } from '../doc/factory.ts';
-import { pathBounds, scalePath, shapePath, shiftPath, type Anchor, type VectorPath } from '../doc/shapes.ts';
+import { contoursBounds, scalePath, shapePath, shiftPath, type Anchor, type VectorPath } from '../doc/shapes.ts';
 import { splitAt } from './tools/points.ts';
 import { starterDoc } from '../doc/serialize.ts';
 import type { Op } from '../doc/ops.ts';
@@ -644,6 +644,7 @@ export class Editor {
       const sx = Math.hypot(w[0], w[1]), sy = Math.hypot(w[2], w[3]);
       return [
         ...(n.type === 'vector' && n.path ? [{ t: 'set', id: n.id, prop: 'path', value: scalePath(n.path, sx, sy) } as Op] : []),
+        ...(n.type === 'vector' && n.subpaths ? [{ t: 'set', id: n.id, prop: 'subpaths', value: n.subpaths.map(p => scalePath(p, sx, sy)) } as Op] : []),
         ...(n.type === 'text' && n.text && n.text.sizing !== 'fixed' ? [{ t: 'set', id: n.id, prop: 'text', value: { ...n.text, sizing: 'fixed' } } as Op] : []),
         { t: 'set', id: n.id, prop: 'transform', value: localFor(this.doc, world, n.parentId) },
         { t: 'set', id: n.id, prop: 'width', value: r(n.width * Math.hypot(w[0], w[1])) },
@@ -658,14 +659,39 @@ export class Editor {
    * other way, so nothing shifts on screen.
    */
   pathOps(n: Node, path: VectorPath): Op[] {
-    const b = pathBounds(path);
+    const b = contoursBounds([path, ...(n.subpaths ?? [])]);
     const r = (v: number) => Math.round(v * 100) / 100;
     return [
       { t: 'set', id: n.id, prop: 'path', value: shiftPath(path, -b.x, -b.y) },
+      ...(n.subpaths ? [{ t: 'set', id: n.id, prop: 'subpaths', value: n.subpaths.map(p => shiftPath(p, -b.x, -b.y)) } as Op] : []),
       { t: 'set', id: n.id, prop: 'transform', value: multiply(n.transform, translation(b.x, b.y)) },
       { t: 'set', id: n.id, prop: 'width', value: r(b.width) },
       { t: 'set', id: n.id, prop: 'height', value: r(b.height) },
     ];
+  }
+
+  /**
+   * Replace a layer with a path of the given contours (in the layer's own
+   * space), keeping its place, name and look. Used by flatten.
+   */
+  replaceWithPath(n: Node, contours: VectorPath[], fillRule: 'nonzero' | 'evenodd'): void {
+    if (!contours.length) return;
+    const b = contoursBounds(contours);
+    const [first, ...rest] = contours.map(p => shiftPath(p, -b.x, -b.y));
+    const r = (v: number) => Math.round(v * 100) / 100;
+    const vector = createNode('vector', {
+      name: n.name, parentId: n.parentId, order: n.order,
+      transform: multiply(n.transform, translation(b.x, b.y)),
+      width: r(b.width), height: r(b.height),
+      visible: n.visible, locked: n.locked, opacity: n.opacity, blendMode: n.blendMode,
+      fills: structuredClone(n.fills), strokes: structuredClone(n.strokes), effects: structuredClone(n.effects),
+      motion: n.motion, path: first!, ...(rest.length ? { subpaths: rest, fillRule } : {}),
+    });
+    // Children first (deepest last in the list, so reversed), then the layer, then the path in its place.
+    const gone = [...this.doc.descendants(n.id)].reverse();
+    this.pointEdit = null;
+    this.transact('Flatten', () => [...gone.map(d => ({ t: 'remove', id: d.id }) as Op), { t: 'remove', id: n.id }, { t: 'add', node: vector }]);
+    this.select([vector.id]);
   }
 
   /** Translate nodes by a world-space delta (each in its own parent space). */

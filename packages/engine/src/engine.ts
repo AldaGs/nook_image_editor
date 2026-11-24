@@ -58,6 +58,12 @@ export interface Engine {
   renderBoard(id: string, scale: number): Promise<{ width: number; height: number; pixels: Uint8Array } | null>;
   /** A text block's widest line and height, wrapped at `width` (null: no wrapping). */
   measureLines(t: TextProps, width: number | null): { width: number; height: number };
+  /**
+   * Turn the selected layers into plain paths of their outline: a boolean's
+   * merged shape, a group's union, a shape's own outline. Text, pictures and
+   * boards are left alone. Returns how many were flattened.
+   */
+  flatten(): number;
   invalidate(): void;
   destroy(): void;
 }
@@ -140,6 +146,21 @@ export async function createEngine(canvas: HTMLCanvasElement, opts: EngineOption
     },
     setTheme(theme) { renderer.theme = theme; loop.invalidate(); },
     measureLines: (t, width) => renderer.measureLines(t, width),
+    flatten() {
+      const done: string[] = [];
+      editor.history.begin('Flatten');
+      for (const n of editor.topmostSelected()) {
+        if (n.type === 'frame' || n.type === 'text' || n.type === 'page') continue;
+        if (n.fills.some(f => f.kind === 'image')) continue;
+        const r = renderer.flattenContours(editor.doc, n);
+        if (!r?.contours.length) continue;
+        editor.replaceWithPath(n, r.contours, r.fillRule);
+        done.push(...editor.selection);
+      }
+      editor.history.commit();
+      if (done.length) editor.select(done);
+      return done.length;
+    },
     async renderBoard(id, scale) {
       const n = editor.doc.get(id);
       return n ? renderer.renderPixels(editor.doc, n, scale) : null;
