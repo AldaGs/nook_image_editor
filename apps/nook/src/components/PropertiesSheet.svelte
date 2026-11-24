@@ -1,7 +1,7 @@
 <!-- Design sheet for the selection: layer opacity and blend, fills, strokes, effects.
      Edits apply to every selected layer, starting from the first one's values. -->
 <script lang="ts">
-  import { BLEND_MODES, newEffect, solid, type BlendMode, type Effect, type Node, type Paint, type Stroke, type TextProps } from '@nook/engine';
+  import { BLEND_MODES, newEffect, solid, type BlendMode, type Effect, type MotionHints, type Node, type Paint, type Stroke, type TextProps } from '@nook/engine';
   import IconButton from './IconButton.svelte';
   import ColorPicker from './ColorPicker.svelte';
   import PaintRow from './PaintRow.svelte';
@@ -29,7 +29,7 @@
   const label = (m: string) => m.replace(/[A-Z]/g, c => ` ${c.toLowerCase()}`).replace(/^./, c => c.toUpperCase());
 
   /** Live while dragging (done = false), one undo step when done. */
-  function edit(prop: 'opacity' | 'blendMode' | 'fills' | 'strokes' | 'effects' | 'width' | 'height', value: unknown, done = true) {
+  function edit(prop: 'opacity' | 'blendMode' | 'fills' | 'strokes' | 'effects' | 'width' | 'height' | 'motion', value: unknown, done = true) {
     editor.preview(ids, prop, value);
     if (done) editor.commitEdit();
   }
@@ -81,6 +81,25 @@
           <label class="field">H<input type="number" inputmode="numeric" min="1" value={Math.round(n.height)}
             onchange={e => edit('height', Math.round(num(e.currentTarget.value, 1)))} /></label>
         </div>
+      </section>
+    {/if}
+
+    {#if n.type === 'frame' || n.type === 'group'}
+      {@const m = n.motion ?? {}}
+      {@const topLevel = n.parentId === editor.pageId}
+      <section>
+        <h3>Motion</h3>
+        <div class="row">
+          <select aria-label="Motion role" value={m.role ?? ''}
+            onchange={e => edit('motion', { ...m, role: (e.currentTarget.value || undefined) as MotionHints['role'] })}>
+            <option value="">Auto ({topLevel ? 'comp' : n.type === 'group' ? 'layer group' : 'precomp'})</option>
+            {#if topLevel}<option value="comp">Comp</option>{/if}
+            <option value="precomp">Precomp</option>
+            {#if !topLevel}<option value="layer">Layer group</option>{/if}
+          </select>
+        </div>
+        <textarea aria-label="Motion notes" rows="2" placeholder="Notes for the animator" value={m.notes ?? ''}
+          onchange={e => edit('motion', { ...m, notes: e.currentTarget.value.trim() || undefined })}></textarea>
       </section>
     {/if}
 
@@ -211,5 +230,6 @@
   .field input { width: 3.6em; min-width: 0; }
   section { min-width: 0; }
   .full { flex-basis: 100%; }
+  textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; color: inherit; padding: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; resize: vertical; user-select: text; -webkit-user-select: text; }
   .empty { padding: var(--space); color: var(--text-muted); }
 </style>
