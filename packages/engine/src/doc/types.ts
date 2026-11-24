@@ -72,7 +72,13 @@ export interface TextProps {
   background?: TextBackground;
 }
 
-export interface TextBackground { style: 'pill' | 'highlight' | 'bubble'; color: RGBA; padding: number }
+export interface TextBackground {
+  style: 'pill' | 'highlight' | 'bubble';
+  color: RGBA;
+  padding: number;
+  /** Bubble tail: false hides it; at is 0–1 along the bottom edge (default: the text's alignment); size in px (default: padding, at least 12). */
+  tail?: { show: boolean; at?: number; size?: number };
+}
 
 export interface MotionHints { role?: 'comp' | 'precomp' | 'layer'; notes?: string }
 

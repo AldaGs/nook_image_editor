@@ -163,6 +163,22 @@
             {/if}
           {/if}
         </div>
+        {#if t.background?.style === 'bubble'}
+          {@const bg = t.background}
+          {@const tail = { show: true, ...bg.tail }}
+          <div class="row">
+            <label class="field"><input class="check" type="checkbox" checked={tail.show}
+              onchange={e => textBg({ ...bg, tail: { ...tail, show: e.currentTarget.checked } })} />Tail</label>
+            {#if tail.show}
+              <label class="field">Size<input type="number" inputmode="decimal" min="0" value={tail.size ?? Math.max(bg.padding, 12)}
+                onchange={e => textBg({ ...bg, tail: { ...tail, size: num(e.currentTarget.value, 0) } })} /></label>
+              <input type="range" aria-label="Tail position" min="0" max="1" step="0.01"
+                value={tail.at ?? { left: 0, center: 0.5, right: 1 }[t.align]}
+                oninput={e => textBg({ ...bg, tail: { ...tail, at: +e.currentTarget.value } }, false)}
+                onchange={e => textBg({ ...bg, tail: { ...tail, at: +e.currentTarget.value } })} />
+            {/if}
+          </div>
+        {/if}
       </section>
     {/if}
 
@@ -255,6 +271,7 @@
   .value { width: 3em; text-align: right; font-size: 13px; color: var(--text-muted); }
   .field { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-muted); }
   .field input { width: 3.6em; min-width: 0; }
+  .field input.check { width: auto; }
   section { min-width: 0; }
   .full { flex-basis: 100%; }
   textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; color: inherit; padding: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; resize: vertical; user-select: text; -webkit-user-select: text; }

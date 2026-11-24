@@ -10,10 +10,14 @@ test('one padded box per line with text; empty lines get none', () => {
   ]);
 });
 
-test('a bubble wraps every line, with its tail on the text side', () => {
-  const b = bubble([{ x: 0, y: 0, width: 100, height: 20 }, { x: 20, y: 20, width: 60, height: 20 }], 10, 'left')!;
-  assert.deepEqual(b.box, { x: 0, y: 0, width: 100, height: 50 });
-  assert.equal(b.radius, 15);
-  assert.deepEqual(b.tail.at(-1), { x: 15, y: 62 });
-  assert.equal(bubble([], 10, 'left'), null);
+test('a bubble wraps every line; its tail slides along the bottom, sized, or is left off', () => {
+  const lines = [{ x: 0, y: 0, width: 100, height: 20 }, { x: 20, y: 20, width: 60, height: 20 }];
+  const left = bubble(lines, 10, { at: 0, size: 12 })!;
+  assert.deepEqual(left.box, { x: 0, y: 0, width: 100, height: 50 });
+  assert.equal(left.radius, 15);
+  assert.deepEqual(left.tail, [{ x: 15, y: 49 }, { x: 27, y: 49 }, { x: 15, y: 62 }]);
+  const right = bubble(lines, 10, { at: 1, size: 20 })!;
+  assert.deepEqual(right.tail, [{ x: 65, y: 49 }, { x: 85, y: 49 }, { x: 85, y: 70 }]);
+  assert.deepEqual(bubble(lines, 10, null)!.tail, []);
+  assert.equal(bubble([], 10, null), null);
 });
