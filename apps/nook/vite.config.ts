@@ -21,6 +21,8 @@ export default defineConfig({
       workbox: {
         // Precache the CanvasKit wasm (~7 MB) so the app opens offline.
         globPatterns: ['**/*.{js,css,html,svg,wasm,woff2}'],
+        // AI stays off the install: the ONNX runtime and models download only when AI is used.
+        globIgnores: ['**/ort*.{wasm,mjs}', '**/ort.*.mjs', 'models/**'],
         maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
       },
     }),

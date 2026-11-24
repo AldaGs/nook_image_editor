@@ -3,11 +3,12 @@
   import IconButton from './IconButton.svelte';
   import { editor, ui } from '../lib/session.svelte';
 
-  let { layersOpen, onToggleLayers, onFit, onExport }: {
+  let { layersOpen, onToggleLayers, onFit, onExport, onSettings }: {
     layersOpen: boolean;
     onToggleLayers: () => void;
     onFit: () => void;
     onExport: () => void;
+    onSettings: () => void;
   } = $props();
 </script>
 
@@ -16,6 +17,7 @@
     <IconButton icon="layers" label="Layers" active={layersOpen} onclick={onToggleLayers} />
     <span class="title">Nook</span>
     <span class="saved" class:dirty={!ui.saved}>{ui.saved ? 'Saved' : 'Saving…'}</span>
+    <IconButton icon="settings" label="Settings" onclick={onSettings} />
   </div>
   <div class="group">
     <IconButton icon="undo" label="Undo" disabled={!ui.state.canUndo} onclick={() => editor.undo()} />

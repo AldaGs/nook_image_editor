@@ -15,7 +15,9 @@
 
 <script lang="ts">
   import { isGradient, linear, solid } from '@nook/engine';
-  import { loadAsset } from '../lib/assets';
+  import { loadAsset, storeImage } from '../lib/assets';
+  import { aiEnabled, backgroundModel, MODELS, removeBackground } from '@nook/ai';
+  import { ui } from '../lib/session.svelte';
   import ColorPicker from './ColorPicker.svelte';
   import IconButton from './IconButton.svelte';
   import Swatch from './Swatch.svelte';
@@ -39,6 +41,23 @@
     loadAsset(paint.assetId).then(b => { if (live && b) thumb = url = URL.createObjectURL(new Blob([b])); });
     return () => { live = false; if (url) URL.revokeObjectURL(url); };
   });
+
+  // Background removal: the cut-out is stored as a new picture, so undo brings the original back.
+  let removing = $state(false);
+  async function cutOut(img: Extract<Paint, { kind: 'image' }>) {
+    if (!aiEnabled()) { ui.error = 'Background removal uses AI, which is off. Turn it on in Settings.'; return; }
+    const bytes = await loadAsset(img.assetId);
+    if (!bytes) return;
+    removing = true;
+    try {
+      const cut = await storeImage(await removeBackground(new Blob([bytes]), backgroundModel()));
+      onchange({ ...img, ...cut }, true);
+    } catch (e) {
+      ui.error = `Couldn't remove the background: ${e instanceof Error ? e.message : String(e)}`;
+    } finally {
+      removing = false;
+    }
+  }
 
   /** Solid ↔ linear ↔ radial (pictures only come in through Add picture, drop or paste). */
   function setKind(kind: 'solid' | 'linear' | 'radial') {
@@ -103,6 +122,14 @@
     <IconButton icon={paint.visible ? 'eye' : 'eyeOff'} label={paint.visible ? 'Hide' : 'Show'} onclick={() => onchange({ ...paint, visible: !paint.visible }, true)} />
     <IconButton icon="minus" label="Remove" onclick={onremove} />
   </div>
+  {#if paint.kind === 'image'}
+    {@const img = paint}
+    <div class="row">
+      <button type="button" class="text" disabled={removing} onclick={() => cutOut(img)}>
+        {removing ? `Removing background… (the first time downloads ${MODELS[backgroundModel()].mb} MB)` : 'Remove background'}
+      </button>
+    </div>
+  {/if}
   {#if paint.kind === 'solid' && open === 'paint'}
     {@const p = paint}
     <ColorPicker color={p.color} onchange={(color, done) => onchange({ ...p, color }, done)} />
