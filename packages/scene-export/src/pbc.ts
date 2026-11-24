@@ -6,7 +6,7 @@
 // Transform, Shape). Values are written as `{ "Const": … }` (not animated yet).
 // Anything PBC can't represent yet is listed in the report, never guessed.
 
-import { affine, type Doc, type Node, type RGBA } from '@nook/engine';
+import { affine, paintColor, type Doc, type Node, type RGBA } from '@nook/engine';
 
 export interface PbcExport {
   /** Text of the .pbc file. */
@@ -133,7 +133,9 @@ function firstSolid(n: Node, report: string[]): RGBA | null {
   const visible = n.fills.filter(f => f.visible);
   if (visible.length > 1) report.push(`"${n.name}" has ${visible.length} fills; only the top one was exported.`);
   const top = visible[visible.length - 1];
-  return top ? { ...top.color, a: top.color.a * top.opacity } : null;
+  if (!top) return null;
+  const c = paintColor(top);
+  return { ...c, a: c.a * top.opacity };
 }
 
 const round = (v: number) => Math.round(v * 1000) / 1000;

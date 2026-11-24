@@ -16,14 +16,28 @@ export type BlendMode =
   | 'colorDodge' | 'colorBurn' | 'hardLight' | 'softLight' | 'difference'
   | 'exclusion' | 'hue' | 'saturation' | 'color' | 'luminosity';
 
-/** Stage 1 paints are solid only; gradients and images arrive in stages 2–3. */
-export interface SolidPaint { kind: 'solid'; color: RGBA; opacity: number; blendMode: BlendMode; visible: boolean }
-export type Paint = SolidPaint;
+interface PaintBase { opacity: number; blendMode: BlendMode; visible: boolean }
+export interface SolidPaint extends PaintBase { kind: 'solid'; color: RGBA }
+export interface GradientStop { offset: number; color: RGBA }
+/**
+ * Linear: colour runs from `from` to `to`. Radial: `from` is the centre and
+ * `to` lies on the outer circle. Points are in the node's unit box (0–1 on
+ * each axis), so the gradient follows the node when it is resized.
+ */
+export interface GradientPaint extends PaintBase {
+  kind: 'linear' | 'radial';
+  stops: GradientStop[];   // offsets 0–1, in order
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+}
+export type Paint = SolidPaint | GradientPaint;
 
 export interface Stroke { paint: Paint; width: number; align: 'inside' | 'center' | 'outside' }
 
-/** Filled in by stage 2 (shadows, blurs) and stage 5 (sticker outline). */
-export interface Effect { kind: string; visible: boolean }
+export interface Shadow { kind: 'dropShadow' | 'innerShadow'; visible: boolean; color: RGBA; x: number; y: number; blur: number; spread: number }
+export interface Blur { kind: 'layerBlur' | 'backgroundBlur'; visible: boolean; radius: number }
+/** The sticker outline (stage 5) joins this union. */
+export type Effect = Shadow | Blur;
 
 export interface MotionHints { role?: 'comp' | 'precomp' | 'layer'; notes?: string }
 
@@ -52,3 +66,22 @@ export interface Node {
 export type NodeProp = Exclude<keyof Node, 'id' | 'type'>;
 
 export const solid = (color: RGBA): SolidPaint => ({ kind: 'solid', color, opacity: 1, blendMode: 'normal', visible: true });
+
+export const linear = (a: RGBA, b: RGBA): GradientPaint => ({
+  kind: 'linear', stops: [{ offset: 0, color: a }, { offset: 1, color: b }],
+  from: { x: 0.5, y: 0 }, to: { x: 0.5, y: 1 }, opacity: 1, blendMode: 'normal', visible: true,
+});
+
+/** Defaults for a newly added effect, Figma-like. */
+export function newEffect(kind: Effect['kind']): Effect {
+  if (kind === 'layerBlur' || kind === 'backgroundBlur') return { kind, visible: true, radius: 8 };
+  return { kind, visible: true, color: { r: 0, g: 0, b: 0, a: 0.25 }, x: 0, y: 4, blur: 8, spread: 0 };
+}
+
+/** One flat colour standing in for a paint (gradients: their average stop). */
+export function paintColor(p: Paint): RGBA {
+  if (p.kind === 'solid') return p.color;
+  const n = p.stops.length || 1;
+  const sum = p.stops.reduce((a, s) => ({ r: a.r + s.color.r, g: a.g + s.color.g, b: a.b + s.color.b, a: a.a + s.color.a }), { r: 0, g: 0, b: 0, a: 0 });
+  return { r: sum.r / n, g: sum.g / n, b: sum.b / n, a: sum.a / n };
+}

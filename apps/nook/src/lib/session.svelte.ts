@@ -8,6 +8,8 @@ const DOC_PATH = 'docs/current/doc.json';
 const SAVE_DELAY = 400; // ms after the last change
 
 export const editor = new Editor(starterDoc());
+// Dev only: poke the document from the browser console as `nook`.
+if (import.meta.env.DEV) (globalThis as Record<string, unknown>).nook = editor;
 
 /** Mirrors editor.state; components read this to re-render on changes. */
 export const ui = $state<{ state: EditorState; saved: boolean; loaded: boolean; error: string | null }>({

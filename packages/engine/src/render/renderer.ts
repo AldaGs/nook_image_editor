@@ -5,10 +5,10 @@
 // until something inside it changes, so dragging one shape doesn't re-walk
 // every other board.
 
-import type { Canvas, CanvasKit, Paint as SkPaint, SkPicture, Surface } from 'canvaskit-wasm';
+import type { Canvas, CanvasKit, ImageFilter, Paint as SkPaint, Path as SkPath, SkPicture, Surface } from 'canvaskit-wasm';
 import type { Camera } from '../camera/camera.ts';
 import type { Doc } from '../doc/document.ts';
-import type { BlendMode, Node, RGBA } from '../doc/types.ts';
+import type { BlendMode, Node, Paint, RGBA, Shadow, Stroke } from '../doc/types.ts';
 import { intersects, type Affine, type Point, type Rect } from '../geom/affine.ts';
 import { worldBounds, worldCorners } from '../editor/bounds.ts';
 import type { Editor } from '../editor/editor.ts';
@@ -23,7 +23,6 @@ export class Renderer {
   private surface: Surface | null = null;
   private fill: SkPaint;
   private line: SkPaint;
-  private layer: SkPaint; // reused for opacity layers
   private dpr = 1;
   private pictures = new Map<string, SkPicture>();
   private picturesFor: Doc | null = null;
@@ -41,7 +40,6 @@ export class Renderer {
     this.line = new ck.Paint();
     this.line.setAntiAlias(true);
     this.line.setStyle(ck.PaintStyle.Stroke);
-    this.layer = new ck.Paint();
   }
 
   /** Match the backing store to the element's CSS size. Call on resize. */
@@ -122,57 +120,171 @@ export class Renderer {
     this.clearPictures();
     this.fill.delete();
     this.line.delete();
-    this.layer.delete();
     this.surface?.delete();
     this.surface = null;
   }
 
   // ── Document ─────────────────────────────────────────────────
 
+  /**
+   * One node and its subtree, in its own space. Order, like Figma: background
+   * blur, then (isolated when there is opacity, a blend mode or effects) drop
+   * shadows, the content, inner shadows; a layer blur blurs that whole layer.
+   */
   private drawNode(c: Canvas, doc: Doc, n: Node): void {
     if (!n.visible) return;
     c.save();
     c.concat(this.matrix(n.transform));
-    // Partial opacity on containers needs a layer so overlapping children don't double up.
-    const layered = n.opacity < 1 && (n.type === 'frame' || n.type === 'group');
-    if (layered) c.saveLayer(this.alphaPaint(n.opacity));
-    const alpha = layered ? 1 : n.opacity;
+    const fx = n.effects.filter(e => e.visible);
+    const outline = this.outline(n);
 
-    switch (n.type) {
-      case 'frame': {
-        const rr = this.ck.RRectXY(this.ck.XYWHRect(0, 0, n.width, n.height), n.cornerRadius ?? 0, n.cornerRadius ?? 0);
-        this.paintFills(c, n, alpha, k => k.drawRRect(rr, this.fill));
-        if (n.clipContent) c.clipRRect(rr, this.ck.ClipOp.Intersect, true);
-        doc.children(n.id).forEach(k => this.drawNode(c, doc, k));
-        break;
-      }
-      case 'group':
-        doc.children(n.id).forEach(k => this.drawNode(c, doc, k));
-        break;
-      case 'rect': {
-        const rr = this.ck.RRectXY(this.ck.XYWHRect(0, 0, n.width, n.height), n.cornerRadius ?? 0, n.cornerRadius ?? 0);
-        this.paintFills(c, n, alpha, k => k.drawRRect(rr, this.fill));
-        break;
-      }
-      case 'ellipse':
-        this.paintFills(c, n, alpha, k => k.drawOval(this.ck.XYWHRect(0, 0, n.width, n.height), this.fill));
-        break;
-      default:
-        break; // other node types arrive in later stages
+    for (const e of fx) {
+      if (e.kind !== 'backgroundBlur' || !outline) continue;
+      // Blur what is already drawn, inside the node's outline.
+      const blur = this.ck.ImageFilter.MakeBlur(e.radius / 2, e.radius / 2, this.ck.TileMode.Clamp, null);
+      c.save();
+      c.clipPath(outline, this.ck.ClipOp.Intersect, true);
+      c.saveLayer(undefined, null, blur);
+      c.restore();
+      c.restore();
+      blur.delete();
     }
-    if (layered) c.restore();
+
+    const isolate = n.opacity < 1 || n.blendMode !== 'normal' || fx.length > 0;
+    const layerBlur = fx.find(e => e.kind === 'layerBlur');
+    let layerFilter: ImageFilter | null = null;
+    if (isolate) {
+      const paint = new this.ck.Paint();
+      paint.setAlphaf(n.opacity);
+      paint.setBlendMode(this.blend(n.blendMode));
+      if (layerBlur?.kind === 'layerBlur') {
+        layerFilter = this.ck.ImageFilter.MakeBlur(layerBlur.radius / 2, layerBlur.radius / 2, this.ck.TileMode.Decal, null);
+        paint.setImageFilter(layerFilter);
+      }
+      c.saveLayer(paint);
+      paint.delete();
+    }
+
+    for (const e of fx) if (e.kind === 'dropShadow') this.withFilter(c, this.dropShadow(e), undefined, () => this.drawContent(c, doc, n, outline));
+    this.drawContent(c, doc, n, outline);
+    for (const e of fx) if (e.kind === 'innerShadow') this.withFilter(c, this.innerShadow(e), this.ck.BlendMode.SrcATop, () => this.drawContent(c, doc, n, outline));
+
+    if (isolate) c.restore();
+    layerFilter?.delete();
+    outline?.delete();
     c.restore();
   }
 
-  /** Draw each visible fill, bottom to top. */
-  private paintFills(c: Canvas, n: Node, alpha: number, draw: (c: Canvas) => void): void {
-    for (const f of n.fills) {
-      if (!f.visible) continue;
-      this.fill.setColor(this.color(f.color, f.opacity * alpha));
-      this.fill.setBlendMode(this.blend(f.blendMode));
-      draw(c);
+  /** The node's own shape, for fills, strokes, clipping and background blur. */
+  private outline(n: Node): SkPath | null {
+    const b = new this.ck.PathBuilder();
+    const rect = this.ck.XYWHRect(0, 0, n.width, n.height);
+    switch (n.type) {
+      case 'frame':
+      case 'rect': {
+        const r = n.cornerRadius ?? 0;
+        b.addRRect(this.ck.RRectXY(rect, r, r));
+        break;
+      }
+      case 'ellipse':
+        b.addOval(rect);
+        break;
+      default:
+        b.delete();
+        return null;
     }
-    this.fill.setBlendMode(this.ck.BlendMode.SrcOver);
+    return b.detachAndDelete();
+  }
+
+  /** Fills, children (clipped for frames) and strokes, without effects. */
+  private drawContent(c: Canvas, doc: Doc, n: Node, outline: SkPath | null): void {
+    if (outline) for (const f of n.fills) this.drawPaint(c, n, f, p => c.drawPath(outline, p));
+    if (n.type === 'frame' || n.type === 'group') {
+      c.save();
+      if (n.type === 'frame' && n.clipContent && outline) c.clipPath(outline, this.ck.ClipOp.Intersect, true);
+      doc.children(n.id).forEach(k => this.drawNode(c, doc, k));
+      c.restore();
+    }
+    if (outline) for (const s of n.strokes) this.drawStroke(c, n, s, outline);
+  }
+
+  /** Strokes are centred on the outline; inside/outside double the width and clip half away. */
+  private drawStroke(c: Canvas, n: Node, s: Stroke, outline: SkPath): void {
+    if (!s.paint.visible || s.width <= 0) return;
+    c.save();
+    if (s.align !== 'center') c.clipPath(outline, s.align === 'inside' ? this.ck.ClipOp.Intersect : this.ck.ClipOp.Difference, true);
+    const width = s.align === 'center' ? s.width : s.width * 2;
+    this.drawPaint(c, n, s.paint, p => {
+      p.setStyle(this.ck.PaintStyle.Stroke);
+      p.setStrokeWidth(width);
+      c.drawPath(outline, p);
+    });
+    c.restore();
+  }
+
+  /** Set up a paint for a solid or gradient fill over the node's box, draw, clean up. */
+  private drawPaint(c: Canvas, n: Node, f: Paint, draw: (p: SkPaint) => void): void {
+    if (!f.visible) return;
+    const p = new this.ck.Paint();
+    p.setAntiAlias(true);
+    p.setBlendMode(this.blend(f.blendMode));
+    p.setAlphaf(f.opacity);
+    let shader = null;
+    if (f.kind === 'solid') {
+      p.setColor(this.color(f.color, f.opacity));
+    } else {
+      const a = { x: f.from.x * n.width, y: f.from.y * n.height };
+      const b = { x: f.to.x * n.width, y: f.to.y * n.height };
+      const colors = f.stops.map(st => this.color(st.color));
+      const pos = f.stops.map(st => st.offset);
+      shader = f.kind === 'linear'
+        ? this.ck.Shader.MakeLinearGradient([a.x, a.y], [b.x, b.y], colors, pos, this.ck.TileMode.Clamp)
+        : this.ck.Shader.MakeRadialGradient([a.x, a.y], Math.max(1e-3, Math.hypot(b.x - a.x, b.y - a.y)), colors, pos, this.ck.TileMode.Clamp);
+      p.setShader(shader);
+    }
+    draw(p);
+    shader?.delete();
+    p.delete();
+  }
+
+  /** Draw `body` into a layer with an image filter (and optional blend), then free the filter. */
+  private withFilter(c: Canvas, filter: ImageFilter, blend: ReturnType<Renderer['blend']> | undefined, body: () => void): void {
+    const paint = new this.ck.Paint();
+    paint.setImageFilter(filter);
+    if (blend) paint.setBlendMode(blend);
+    c.saveLayer(paint);
+    body();
+    c.restore();
+    paint.delete();
+    filter.delete();
+  }
+
+  /** Spread grows (or, negative, shrinks) the alpha before it is blurred. */
+  private spread(amount: number, input: ImageFilter | null): ImageFilter | null {
+    if (!amount) return input;
+    return amount > 0 ? this.ck.ImageFilter.MakeDilate(amount, amount, input) : this.ck.ImageFilter.MakeErode(-amount, -amount, input);
+  }
+
+  private dropShadow(e: Shadow): ImageFilter {
+    return this.ck.ImageFilter.MakeDropShadowOnly(e.x, e.y, e.blur / 2, e.blur / 2, this.color(e.color), this.spread(e.spread, null));
+  }
+
+  /**
+   * The content's alpha turned inside out and filled with the shadow colour,
+   * grown by spread, offset and blurred; drawn SrcATop so it only lands on the content.
+   */
+  private innerShadow(e: Shadow): ImageFilter {
+    const { r, g, b, a } = e.color;
+    const invert = this.ck.ColorFilter.MakeMatrix([
+      0, 0, 0, 0, r,
+      0, 0, 0, 0, g,
+      0, 0, 0, 0, b,
+      0, 0, 0, -a, a,
+    ]);
+    const base = this.ck.ImageFilter.MakeColorFilter(invert, null);
+    invert.delete();
+    const moved = this.ck.ImageFilter.MakeOffset(e.x, e.y, this.spread(e.spread, base));
+    return this.ck.ImageFilter.MakeBlur(e.blur / 2, e.blur / 2, this.ck.TileMode.Decal, moved);
   }
 
   // ── Overlay (screen space) ───────────────────────────────────
@@ -251,11 +363,6 @@ export class Renderer {
 
   private viewRect(camera: Camera): Rect {
     return { x: camera.x, y: camera.y, width: this.canvas.clientWidth / camera.zoom, height: this.canvas.clientHeight / camera.zoom };
-  }
-
-  private alphaPaint(alpha: number): SkPaint {
-    this.layer.setAlphaf(alpha);
-    return this.layer;
   }
 
   private color(c: RGBA, alpha = 1) {
