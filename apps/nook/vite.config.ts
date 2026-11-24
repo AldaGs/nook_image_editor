@@ -12,7 +12,7 @@ export default defineConfig({
         name: 'Nook',
         short_name: 'Nook',
         description: 'Design boards and social posts on the go, with layers that go straight into animation.',
-        theme_color: '#6d4aff',
+        theme_color: '#18181b',
         background_color: '#1c1c1f',
         display: 'standalone',
         orientation: 'any',

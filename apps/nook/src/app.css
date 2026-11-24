@@ -33,4 +33,37 @@ input:not([type='color']):not([type='range']), select {
   box-sizing: border-box;
 }
 input[type='number'] { padding: 0 4px; text-align: right; }
-input[type='range'] { accent-color: var(--accent); min-height: var(--touch-target); }
+/* Sliders, iOS style: a thin track filled up to the thumb (set --fill on the
+   input, 0–100%), and a white round thumb with a soft shadow. */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: var(--touch-target);
+  margin: 0;
+  background: transparent;
+}
+input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--accent) var(--fill, 0%), var(--track) var(--fill, 0%));
+}
+input[type='range']::-moz-range-track { height: 4px; border-radius: 2px; background: var(--track); }
+input[type='range']::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 28px;
+  height: 28px;
+  margin-top: -12px;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.04), 0 3px 8px rgb(0 0 0 / 0.15), 0 3px 1px rgb(0 0 0 / 0.06);
+}
+input[type='range']::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.04), 0 3px 8px rgb(0 0 0 / 0.15), 0 3px 1px rgb(0 0 0 / 0.06);
+}

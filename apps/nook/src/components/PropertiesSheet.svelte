@@ -56,7 +56,7 @@
     <section>
       <h3>Layer</h3>
       <div class="row">
-        <input type="range" min="0" max="1" step="0.01" aria-label="Layer opacity" value={n.opacity}
+        <input type="range" min="0" max="1" step="0.01" aria-label="Layer opacity" value={n.opacity} style:--fill="{n.opacity * 100}%"
           oninput={e => edit('opacity', +e.currentTarget.value, false)} onchange={e => edit('opacity', +e.currentTarget.value)} />
         <span class="value">{Math.round(n.opacity * 100)}%</span>
       </div>

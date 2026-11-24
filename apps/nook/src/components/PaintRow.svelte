@@ -89,7 +89,7 @@
         <input class="swatch small" type="color" aria-label="Stop colour" value={toHex(stop.color)}
           oninput={e => setStop(g, i, { color: fromHex(e.currentTarget.value, stop.color.a) }, false)}
           onchange={e => setStop(g, i, { color: fromHex(e.currentTarget.value, stop.color.a) }, true)} />
-        <input type="range" min="0" max="1" step="0.01" aria-label="Stop position" value={stop.offset}
+        <input type="range" min="0" max="1" step="0.01" aria-label="Stop position" value={stop.offset} style:--fill="{stop.offset * 100}%"
           oninput={e => setStop(g, i, { offset: +e.currentTarget.value }, false)}
           onchange={e => setStop(g, i, { offset: +e.currentTarget.value }, true)} />
         <label class="pct">

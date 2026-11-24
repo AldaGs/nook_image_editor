@@ -10,7 +10,9 @@
   --text: #18181b;
   --text-muted: #71717a;
   --border: #e4e4e7;
-  --accent: #6d4aff;
+  --accent: #18181b;      /* neutral: the strongest ink on each theme */
+  --on-accent: #ffffff;   /* text and icons on an accent fill */
+  --track: #e4e4e7;       /* slider track */
 
   --radius: 10px;
   --space: 8px;
@@ -25,6 +27,8 @@
     --text: #fafafa;
     --text-muted: #a1a1aa;
     --border: #3f3f46;
-    --accent: #8b6dff;
+    --accent: #fafafa;
+    --on-accent: #18181b;
+    --track: #3f3f46;
   }
 }

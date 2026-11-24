@@ -28,6 +28,6 @@
     font-size: 18px;
   }
   button:active:not(:disabled) { background: var(--border); }
-  button.active { background: var(--accent); color: #fff; }
+  button.active { background: var(--accent); color: var(--on-accent); }
   button:disabled { opacity: 0.35; }
 </style>

@@ -10,6 +10,8 @@ const hex = (h: string): TokenColor => {
 };
 
 export const canvasColors = {
-  light: { background: hex('#f4f4f5'), board: hex('#ffffff'), accent: hex('#6d4aff') },
-  dark: { background: hex('#1c1c1f'), board: hex('#2e2e33'), accent: hex('#8b6dff') },
+  // Selection colour: ink in light mode; light gray in dark mode, because the
+  // boards themselves are usually white and a white outline would vanish on them.
+  light: { background: hex('#f4f4f5'), board: hex('#ffffff'), accent: hex('#18181b') },
+  dark: { background: hex('#1c1c1f'), board: hex('#2e2e33'), accent: hex('#a1a1aa') },
 } as const;
