@@ -59,7 +59,7 @@ export function documentColors(doc: Doc, limit = 12): RGBA[] {
     if (n.type === 'page') continue;
     n.fills.forEach(paint);
     n.strokes.forEach(s => paint(s.paint));
-    for (const e of n.effects) if (e.kind === 'dropShadow' || e.kind === 'innerShadow') add(e.color);
+    for (const e of n.effects) if ('color' in e) add(e.color);
   }
   return [...counts.values()].sort((a, b) => b.n - a.n).slice(0, limit).map(e => e.c);
 }

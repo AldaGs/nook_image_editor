@@ -8,7 +8,7 @@
 import type { Canvas, CanvasKit, Image as SkImage, ImageFilter, Paint as SkPaint, Paragraph, Path as SkPath, SkPicture, Surface, TypefaceFontProvider } from 'canvaskit-wasm';
 import type { Camera } from '../camera/camera.ts';
 import type { Doc } from '../doc/document.ts';
-import type { BlendMode, Node, Paint, RGBA, Shadow, Stroke, TextProps } from '../doc/types.ts';
+import type { BlendMode, Node, Outline, Paint, RGBA, Shadow, Stroke, TextProps } from '../doc/types.ts';
 import { apply, intersects, invert, multiply, type Affine, type Point, type Rect } from '../geom/affine.ts';
 import { worldBounds, worldCorners } from '../editor/bounds.ts';
 import type { Editor } from '../editor/editor.ts';
@@ -199,6 +199,7 @@ export class Renderer {
       paint.delete();
     }
 
+    for (const e of fx) if (e.kind === 'outline' && e.width > 0) this.withFilter(c, this.stickerOutline(e), undefined, () => this.drawContent(c, doc, n, outline));
     for (const e of fx) if (e.kind === 'dropShadow') this.withFilter(c, this.dropShadow(e), undefined, () => this.drawContent(c, doc, n, outline));
     this.drawContent(c, doc, n, outline);
     for (const e of fx) if (e.kind === 'innerShadow') this.withFilter(c, this.innerShadow(e), this.ck.BlendMode.SrcATop, () => this.drawContent(c, doc, n, outline));
@@ -519,6 +520,29 @@ export class Renderer {
 
   private dropShadow(e: Shadow): ImageFilter {
     return this.ck.ImageFilter.MakeDropShadowOnly(e.x, e.y, e.blur / 2, e.blur / 2, this.color(e.color), this.spread(e.spread, null));
+  }
+
+  /**
+   * Grow the alpha, blur it, then snap it back to a hard edge: a dilate alone
+   * gives square corners, this gives the round ones a die-cut sticker has.
+   */
+  private stickerOutline(e: Outline): ImageFilter {
+    const w = e.width;
+    const grown = this.ck.ImageFilter.MakeBlur(w * 0.35, w * 0.35, this.ck.TileMode.Decal, this.ck.ImageFilter.MakeDilate(w * 0.8, w * 0.8, null));
+    const { r, g, b, a } = e.color;
+    const hard = this.ck.ColorFilter.MakeMatrix([
+      0, 0, 0, 0, r,
+      0, 0, 0, 0, g,
+      0, 0, 0, 0, b,
+      0, 0, 0, 8, -3.5, // alpha past ~0.44 becomes opaque: a crisp edge
+    ]);
+    const snapped = this.ck.ImageFilter.MakeColorFilter(hard, grown);
+    hard.delete();
+    if (a >= 1) return snapped;
+    const fade = this.ck.ColorFilter.MakeMatrix([1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, a, 0]);
+    const out = this.ck.ImageFilter.MakeColorFilter(fade, snapped);
+    fade.delete();
+    return out;
   }
 
   /**

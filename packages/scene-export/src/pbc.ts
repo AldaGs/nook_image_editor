@@ -292,7 +292,7 @@ function stroke(n: Node, report: string[]): unknown {
 }
 
 const EFFECT_NAMES: Record<Effect['kind'], string> = {
-  dropShadow: 'drop shadow', innerShadow: 'inner shadow', layerBlur: 'layer blur', backgroundBlur: 'background blur',
+  dropShadow: 'drop shadow', innerShadow: 'inner shadow', layerBlur: 'layer blur', backgroundBlur: 'background blur', outline: 'sticker outline',
 };
 
 /**

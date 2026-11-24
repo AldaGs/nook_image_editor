@@ -26,8 +26,10 @@
   let open = $state<'paint' | number | null>(null);
   const toggle = (which: 'paint' | number) => (open = open === which ? null : which);
 
-  let { paint, onchange, onremove, oneditgradient }: {
+  let { paint, onchange, onremove, oneditgradient, onsticker }: {
     paint: Paint;
+    /** Pictures in fills: the cut-out, for the caller to store with a sticker outline in one undo step. */
+    onsticker?: (cutOut: Paint) => void;
     onchange: (p: Paint, done: boolean) => void;
     onremove: () => void;
     oneditgradient?: () => void;
@@ -44,7 +46,7 @@
 
   // Background removal: the cut-out is stored as a new picture, so undo brings the original back.
   let removing = $state(false);
-  async function cutOut(img: Extract<Paint, { kind: 'image' }>) {
+  async function cutOut(img: Extract<Paint, { kind: 'image' }>, sticker = false) {
     if (!aiEnabled()) { ui.error = 'Background removal uses AI, which is off. Turn it on in Settings.'; return; }
     const bytes = await loadAsset(img.assetId);
     if (!bytes) return;
@@ -52,7 +54,8 @@
     try {
       const chosen = backgroundModel();
       const { png, model } = await removeBackground(new Blob([bytes]), chosen);
-      onchange({ ...img, ...(await storeImage(png)) }, true);
+      const cut = { ...img, ...(await storeImage(png)) };
+      if (sticker && onsticker) onsticker(cut); else onchange(cut, true);
       if (model !== chosen) ui.error = `${MODELS[chosen].name} can't run on this device, so ${MODELS[model].name} removed the background.`;
     } catch (e) {
       ui.error = `Couldn't remove the background: ${e instanceof Error ? e.message : String(e)}`;
@@ -130,6 +133,9 @@
       <button type="button" class="text" disabled={removing} onclick={() => cutOut(img)}>
         {removing ? `Removing background… (the first time downloads ${MODELS[backgroundModel()].mb} MB)` : 'Remove background'}
       </button>
+      {#if onsticker && !removing}
+        <button type="button" class="text" onclick={() => cutOut(img, true)}>Make sticker</button>
+      {/if}
     </div>
   {/if}
   {#if paint.kind === 'solid' && open === 'paint'}

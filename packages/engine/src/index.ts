@@ -5,7 +5,7 @@ export { Editor, estimateText, type EditorState, type ToolId, type GradientTarge
 export { Doc } from './doc/document.ts';
 export { FRAME_PRESETS, STORY_SAFE_ZONE, isStoryShaped, type FramePreset } from './doc/factory.ts';
 export { toFile, fromFile, starterDoc, usedAssets, type DocFile } from './doc/serialize.ts';
-export type { ImagePaint, TextProps, TextBackground, Node, NodeType, RGBA, Paint, SolidPaint, GradientPaint, GradientStop, Stroke, Effect, Shadow, Blur, BlendMode, MotionHints } from './doc/types.ts';
+export type { ImagePaint, TextProps, TextBackground, Node, NodeType, RGBA, Paint, SolidPaint, GradientPaint, GradientStop, Stroke, Effect, Shadow, Blur, Outline, BlendMode, MotionHints } from './doc/types.ts';
 export { solid, linear, newEffect, paintColor, isGradient, BLEND_MODES } from './doc/types.ts';
 export type { RendererTheme } from './render/renderer.ts';
 export { localBox } from './editor/bounds.ts';

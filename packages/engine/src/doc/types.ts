@@ -51,8 +51,9 @@ export interface Stroke { paint: Paint; width: number; align: 'inside' | 'center
 
 export interface Shadow { kind: 'dropShadow' | 'innerShadow'; visible: boolean; color: RGBA; x: number; y: number; blur: number; spread: number }
 export interface Blur { kind: 'layerBlur' | 'backgroundBlur'; visible: boolean; radius: number }
-/** The sticker outline (stage 5) joins this union. */
-export type Effect = Shadow | Blur;
+/** A solid, round-cornered border around the layer's alpha: the sticker cut line. */
+export interface Outline { kind: 'outline'; visible: boolean; color: RGBA; width: number }
+export type Effect = Shadow | Blur | Outline;
 
 /**
  * Text content and style. `sizing` says which way the box follows the text:
@@ -117,6 +118,7 @@ export const linear = (a: RGBA, b: RGBA): GradientPaint => ({
 /** Defaults for a newly added effect, Figma-like. */
 export function newEffect(kind: Effect['kind']): Effect {
   if (kind === 'layerBlur' || kind === 'backgroundBlur') return { kind, visible: true, radius: 8 };
+  if (kind === 'outline') return { kind, visible: true, color: { r: 1, g: 1, b: 1, a: 1 }, width: 16 };
   return { kind, visible: true, color: { r: 0, g: 0, b: 0, a: 0.25 }, x: 0, y: 4, blur: 8, spread: 0 };
 }
 

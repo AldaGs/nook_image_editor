@@ -25,7 +25,7 @@
   const painted = $derived(!!n && n.type !== 'group');
 
   const EFFECTS: [Effect['kind'], string][] = [
-    ['dropShadow', 'Drop shadow'], ['innerShadow', 'Inner shadow'], ['layerBlur', 'Layer blur'], ['backgroundBlur', 'Background blur'],
+    ['dropShadow', 'Drop shadow'], ['innerShadow', 'Inner shadow'], ['layerBlur', 'Layer blur'], ['backgroundBlur', 'Background blur'], ['outline', 'Sticker outline'],
   ];
   const label = (m: string) => m.replace(/[A-Z]/g, c => ` ${c.toLowerCase()}`).replace(/^./, c => c.toUpperCase());
 
@@ -53,6 +53,16 @@
     100: 'Thin', 200: 'Extra light', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'Semibold', 700: 'Bold', 800: 'Extra bold', 900: 'Black',
   };
   const nearestWeight = (family: string, w: number) => weightsOf(family).reduce((a, b) => (Math.abs(b - w) < Math.abs(a - w) ? b : a));
+
+  /** Cut-out picture, white sticker outline and a soft shadow: one undo step. */
+  function makeSticker(node: Node, i: number, cut: Paint) {
+    const effects = [...node.effects.filter(e => e.kind !== 'outline'), newEffect('outline'),
+      { kind: 'dropShadow', visible: true, color: { r: 0, g: 0, b: 0, a: 0.25 }, x: 0, y: 6, blur: 16, spread: 0 } satisfies Effect];
+    editor.transact('Make sticker', () => [
+      { t: 'set', id: node.id, prop: 'fills', value: replace(node.fills, i, cut) },
+      { t: 'set', id: node.id, prop: 'effects', value: effects },
+    ]);
+  }
 
   /** The shadow whose colour picker is open, by effect index. */
   let shadowPicker = $state<number | null>(null);
@@ -190,7 +200,8 @@
           <PaintRow paint={n.fills[i]!}
             onchange={(p: Paint, done) => edit('fills', replace(n.fills, i, p), done)}
             onremove={() => edit('fills', remove(n.fills, i))}
-            oneditgradient={() => onEditGradient('fills', i)} />
+            oneditgradient={() => onEditGradient('fills', i)}
+            onsticker={p => makeSticker(n, i, p)} />
         {/each}
       </section>
 
@@ -243,6 +254,13 @@
               onchange={ev => edit('effects', replace(n.effects, i, { ...e, blur: num(ev.currentTarget.value, 0) }))} /></label>
             <label class="field">Spread<input type="number" inputmode="decimal" value={e.spread}
               onchange={ev => edit('effects', replace(n.effects, i, { ...e, spread: num(ev.currentTarget.value) }))} /></label>
+            {#if shadowPicker === i}
+              <div class="full"><ColorPicker color={e.color} onchange={(color, done) => edit('effects', replace(n.effects, i, { ...e, color }), done)} /></div>
+            {/if}
+          {:else if e.kind === 'outline'}
+            <Swatch color={e.color} label="Outline colour" size={32} open={shadowPicker === i} onclick={() => (shadowPicker = shadowPicker === i ? null : i)} />
+            <label class="field">Width<input type="number" inputmode="decimal" min="0" value={e.width}
+              onchange={ev => edit('effects', replace(n.effects, i, { ...e, width: num(ev.currentTarget.value, 0) }))} /></label>
             {#if shadowPicker === i}
               <div class="full"><ColorPicker color={e.color} onchange={(color, done) => edit('effects', replace(n.effects, i, { ...e, color }), done)} /></div>
             {/if}
