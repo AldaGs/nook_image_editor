@@ -5,10 +5,10 @@
 // until something inside it changes, so dragging one shape doesn't re-walk
 // every other board.
 
-import type { Canvas, CanvasKit, ImageFilter, Paint as SkPaint, Path as SkPath, SkPicture, Surface } from 'canvaskit-wasm';
+import type { Canvas, CanvasKit, ImageFilter, Paint as SkPaint, Paragraph, Path as SkPath, SkPicture, Surface, TypefaceFontProvider } from 'canvaskit-wasm';
 import type { Camera } from '../camera/camera.ts';
 import type { Doc } from '../doc/document.ts';
-import type { BlendMode, Node, Paint, RGBA, Shadow, Stroke } from '../doc/types.ts';
+import type { BlendMode, Node, Paint, RGBA, Shadow, Stroke, TextProps } from '../doc/types.ts';
 import { intersects, type Affine, type Point, type Rect } from '../geom/affine.ts';
 import { worldBounds, worldCorners } from '../editor/bounds.ts';
 import type { Editor } from '../editor/editor.ts';
@@ -25,6 +25,13 @@ export class Renderer {
   private line: SkPaint;
   private dpr = 1;
   private pictures = new Map<string, SkPicture>();
+  private fonts: TypefaceFontProvider;
+  private requestedFonts = new Set<string>();
+  private clear: SkPaint; // transparent background paint for text runs
+  /** Fetches a font's file for a family and weight (the app knows where fonts live). */
+  loadFont: ((family: string, weight: number) => Promise<ArrayBuffer | null>) | null = null;
+  /** Called after a font arrives, so text can be re-measured and redrawn. */
+  onFontsChanged: (() => void) | null = null;
   private picturesFor: Doc | null = null;
 
   private ck: CanvasKit;
@@ -40,6 +47,9 @@ export class Renderer {
     this.line = new ck.Paint();
     this.line.setAntiAlias(true);
     this.line.setStyle(ck.PaintStyle.Stroke);
+    this.fonts = ck.TypefaceFontProvider.Make();
+    this.clear = new ck.Paint();
+    this.clear.setColor(ck.TRANSPARENT);
   }
 
   /** Match the backing store to the element's CSS size. Call on resize. */
@@ -118,6 +128,8 @@ export class Renderer {
 
   destroy(): void {
     this.clearPictures();
+    this.clear.delete();
+    this.fonts.delete();
     this.fill.delete();
     this.line.delete();
     this.surface?.delete();
@@ -196,8 +208,75 @@ export class Renderer {
     return b.detachAndDelete();
   }
 
+  // ── Text ─────────────────────────────────────────────────────
+
+  /** Ask for a font once; when it arrives, cached boards are redrawn and text re-measured. */
+  private ensureFont(family: string, weight: number): void {
+    const key = `${family}@${weight}`;
+    if (!this.loadFont || this.requestedFonts.has(key)) return;
+    this.requestedFonts.add(key);
+    this.loadFont(family, weight).then(buf => {
+      if (!buf) return;
+      this.fonts.registerFont(buf, family);
+      this.clearPictures();
+      this.onFontsChanged?.();
+    }).catch(() => { this.requestedFonts.delete(key); });
+  }
+
+  /** Shape text with CanvasKit's Paragraph, painted with `fg` (black when measuring). */
+  private paragraph(t: TextProps, fg: SkPaint | null, width: number): Paragraph {
+    this.ensureFont(t.family, t.weight);
+    this.ensureFont('Inter', 400); // fallback while a family loads, and for missing glyphs
+    const W = this.ck.FontWeight;
+    const weights = [W.Thin, W.ExtraLight, W.Light, W.Normal, W.Medium, W.SemiBold, W.Bold, W.ExtraBold, W.Black];
+    const A = this.ck.TextAlign;
+    const textStyle = new this.ck.TextStyle({
+      color: this.ck.BLACK,
+      fontFamilies: [t.family, 'Inter'],
+      fontSize: t.size,
+      letterSpacing: t.letterSpacing,
+      fontStyle: { weight: weights[Math.min(8, Math.max(0, Math.round(t.weight / 100) - 1))]! },
+      ...(t.lineHeight ? { heightMultiplier: t.lineHeight / t.size, halfLeading: true } : {}),
+    });
+    const style = new this.ck.ParagraphStyle({ textStyle, textAlign: { left: A.Left, center: A.Center, right: A.Right }[t.align] });
+    const b = this.ck.ParagraphBuilder.MakeFromFontProvider(style, this.fonts);
+    if (fg) b.pushPaintStyle(textStyle, fg, this.clear);
+    b.addText(t.content || ' ');
+    const p = b.build();
+    b.delete();
+    p.layout(width);
+    return p;
+  }
+
+  /** The box text needs: wrapped at `width`, or one line per paragraph when null. */
+  measure(t: TextProps, width: number | null): { width: number; height: number } {
+    const p = this.paragraph(t, null, width ?? 1e6);
+    const size = { width: width ?? p.getMaxIntrinsicWidth(), height: p.getHeight() };
+    p.delete();
+    return size;
+  }
+
+  /** Strokes set outside draw first at double width, under the fills; the rest draw on top. */
+  private drawText(c: Canvas, n: Node): void {
+    const t = n.text!;
+    // An auto-width box is exactly as wide as its longest line; a hair more stops it wrapping.
+    const width = t.sizing === 'autoWidth' ? n.width + 1 : n.width;
+    const run = (paint: SkPaint) => { const p = this.paragraph(t, paint, width); c.drawParagraph(p, 0, 0); p.delete(); };
+    const stroke = (s: Stroke, w: number) => this.drawPaint(c, n, s.paint, p => {
+      p.setStyle(this.ck.PaintStyle.Stroke);
+      p.setStrokeWidth(w);
+      p.setStrokeJoin(this.ck.StrokeJoin.Round);
+      run(p);
+    });
+    for (const s of n.strokes) if (s.align === 'outside' && s.width > 0) stroke(s, s.width * 2);
+    for (const f of n.fills) this.drawPaint(c, n, f, run);
+    // ponytail: inside strokes draw centred on text; clipping to glyph outlines needs the glyph paths.
+    for (const s of n.strokes) if (s.align !== 'outside' && s.width > 0) stroke(s, s.width);
+  }
+
   /** Fills, children (clipped for frames) and strokes, without effects. */
   private drawContent(c: Canvas, doc: Doc, n: Node, outline: SkPath | null): void {
+    if (n.type === 'text' && n.text) return this.drawText(c, n);
     if (outline) for (const f of n.fills) this.drawPaint(c, n, f, p => c.drawPath(outline, p));
     if (n.type === 'frame' || n.type === 'group') {
       c.save();

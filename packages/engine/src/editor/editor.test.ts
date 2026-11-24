@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Editor } from './editor.ts';
 import { worldCorners } from './bounds.ts';
 import { starterDoc, toFile, fromFile } from '../doc/serialize.ts';
-import { FRAME_PRESETS } from '../doc/factory.ts';
+import { createNode, FRAME_PRESETS } from '../doc/factory.ts';
 import { rotation, multiply, translation } from '../geom/affine.ts';
 import { linear, type Node } from '../doc/types.ts';
 
@@ -184,4 +184,36 @@ test('gradient editing targets one paint and lets go when it stops being a gradi
   ed.undo();
   ed.undo(); // back to solid: the handles go away
   assert.equal(ed.gradientEdit, null);
+});
+
+test('auto-sized text boxes follow their text; a resized box keeps its size', () => {
+  const ed = new Editor(starterDoc());
+  const frame = ed.doc.children(ed.pageId)[0]!;
+  // A stand-in measurer: 10px per character, 20px per line, wrapping at the width.
+  ed.measureText = (t, width) => {
+    const lines = t.content.split('\n');
+    const w = Math.max(...lines.map(l => l.length)) * 10;
+    return { width: width ?? w, height: (width ? lines.reduce((s, l) => s + Math.max(1, Math.ceil((l.length * 10) / width)), 0) : lines.length) * 20 };
+  };
+  const node = createNode('text', { parentId: frame.id, order: 'z' });
+  ed.transact('Add text', () => [{ t: 'add', node }]);
+
+  ed.previewText([node.id], { content: 'Hello\nworld!!' });
+  ed.commitEdit();
+  let n = ed.doc.get(node.id)!;
+  assert.deepEqual([n.width, n.height], [70, 40], 'auto width hugs the longest line');
+
+  ed.previewText([node.id], { sizing: 'autoHeight' });
+  ed.commitEdit();
+  ed.setProp([node.id], 'width', 30);
+  ed.previewText([node.id], { content: 'abcdefghij' }); // 100px of text in a 30px box
+  ed.commitEdit();
+  n = ed.doc.get(node.id)!;
+  assert.deepEqual([n.width, n.height], [30, 80], 'auto height wraps at the width and grows down');
+
+  ed.transact('Resize', () => ed.scaleOps([n], ed.doc.worldTransform(n.id), { x: 0, y: 0, width: 30, height: 80 }, { x: 0, y: 0, width: 60, height: 80 }));
+  assert.equal(ed.doc.get(node.id)!.text!.sizing, 'fixed');
+
+  ed.undo();
+  assert.equal(ed.doc.get(node.id)!.text!.sizing, 'autoHeight');
 });

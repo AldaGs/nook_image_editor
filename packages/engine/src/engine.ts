@@ -7,10 +7,11 @@ import { attachInput } from './input/router.ts';
 import { loadCanvasKit } from './render/canvaskit.ts';
 import { FrameLoop } from './render/frameloop.ts';
 import { Renderer, type RendererTheme } from './render/renderer.ts';
-import type { Editor, ToolId } from './editor/editor.ts';
+import { estimateText, type Editor, type ToolId } from './editor/editor.ts';
 import { worldBounds } from './editor/bounds.ts';
 import { SelectTool } from './editor/tools/select.ts';
 import { ShapeTool } from './editor/tools/shape.ts';
+import { TextTool } from './editor/tools/text.ts';
 import type { Tool, ToolContext } from './editor/tools/tool.ts';
 import type { Point } from './geom/affine.ts';
 
@@ -21,6 +22,8 @@ export interface EngineOptions {
   onFps?: (fps: number) => void;
   /** Called after every redraw that moved the camera or changed the document. */
   onView?: () => void;
+  /** Font file for a family at (or nearest to) a weight; null if there isn't one. */
+  loadFont?: (family: string, weight: number) => Promise<ArrayBuffer | null>;
 }
 
 export interface FrameLabel { id: string; name: string; screen: Point; selected: boolean }
@@ -43,12 +46,18 @@ export async function createEngine(canvas: HTMLCanvasElement, opts: EngineOption
   const renderer = new Renderer(ck, canvas, opts.theme);
 
   const loop = new FrameLoop(() => { renderer.render(camera, editor); opts.onView?.(); }, opts.onFps ?? (() => {}));
+  // Text is measured with the real fonts from here on; boxes sized by the estimate catch up as fonts arrive.
+  renderer.loadFont = opts.loadFont ?? null;
+  renderer.onFontsChanged = () => { editor.refreshTextBoxes(); loop.invalidate(); };
+  editor.measureText = (t, w) => renderer.measure(t, w);
+  editor.refreshTextBoxes();
   const ctx: ToolContext = { editor, camera, invalidate: () => loop.invalidate() };
   const tools: Record<ToolId, Tool> = {
     select: new SelectTool(ctx),
     rect: new ShapeTool(ctx, 'rect'),
     ellipse: new ShapeTool(ctx, 'ellipse'),
     frame: new ShapeTool(ctx, 'frame'),
+    text: new TextTool(ctx),
   };
 
   const detachInput = attachInput(canvas, camera, () => tools[editor.tool], () => loop.invalidate());
@@ -86,6 +95,7 @@ export async function createEngine(canvas: HTMLCanvasElement, opts: EngineOption
       resize.disconnect();
       detachInput();
       unsubscribe();
+      editor.measureText = estimateText;
       renderer.destroy();
     },
   };

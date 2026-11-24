@@ -1,0 +1,57 @@
+// Fonts for text layers: bundled @fontsource files (Latin), fetched the first time
+// a family and weight is drawn. PBC looks fonts up by these same family names, so
+// a board's fonts must be installed on the desktop that opens the .pbc.
+
+import inter100 from '@fontsource/inter/files/inter-latin-100-normal.woff2?url';
+import inter200 from '@fontsource/inter/files/inter-latin-200-normal.woff2?url';
+import inter300 from '@fontsource/inter/files/inter-latin-300-normal.woff2?url';
+import inter400 from '@fontsource/inter/files/inter-latin-400-normal.woff2?url';
+import inter500 from '@fontsource/inter/files/inter-latin-500-normal.woff2?url';
+import inter600 from '@fontsource/inter/files/inter-latin-600-normal.woff2?url';
+import inter700 from '@fontsource/inter/files/inter-latin-700-normal.woff2?url';
+import inter800 from '@fontsource/inter/files/inter-latin-800-normal.woff2?url';
+import inter900 from '@fontsource/inter/files/inter-latin-900-normal.woff2?url';
+import montserrat100 from '@fontsource/montserrat/files/montserrat-latin-100-normal.woff2?url';
+import montserrat200 from '@fontsource/montserrat/files/montserrat-latin-200-normal.woff2?url';
+import montserrat300 from '@fontsource/montserrat/files/montserrat-latin-300-normal.woff2?url';
+import montserrat400 from '@fontsource/montserrat/files/montserrat-latin-400-normal.woff2?url';
+import montserrat500 from '@fontsource/montserrat/files/montserrat-latin-500-normal.woff2?url';
+import montserrat600 from '@fontsource/montserrat/files/montserrat-latin-600-normal.woff2?url';
+import montserrat700 from '@fontsource/montserrat/files/montserrat-latin-700-normal.woff2?url';
+import montserrat800 from '@fontsource/montserrat/files/montserrat-latin-800-normal.woff2?url';
+import montserrat900 from '@fontsource/montserrat/files/montserrat-latin-900-normal.woff2?url';
+import playfairDisplay400 from '@fontsource/playfair-display/files/playfair-display-latin-400-normal.woff2?url';
+import playfairDisplay500 from '@fontsource/playfair-display/files/playfair-display-latin-500-normal.woff2?url';
+import playfairDisplay600 from '@fontsource/playfair-display/files/playfair-display-latin-600-normal.woff2?url';
+import playfairDisplay700 from '@fontsource/playfair-display/files/playfair-display-latin-700-normal.woff2?url';
+import playfairDisplay800 from '@fontsource/playfair-display/files/playfair-display-latin-800-normal.woff2?url';
+import playfairDisplay900 from '@fontsource/playfair-display/files/playfair-display-latin-900-normal.woff2?url';
+import bebasNeue400 from '@fontsource/bebas-neue/files/bebas-neue-latin-400-normal.woff2?url';
+import spaceGrotesk300 from '@fontsource/space-grotesk/files/space-grotesk-latin-300-normal.woff2?url';
+import spaceGrotesk400 from '@fontsource/space-grotesk/files/space-grotesk-latin-400-normal.woff2?url';
+import spaceGrotesk500 from '@fontsource/space-grotesk/files/space-grotesk-latin-500-normal.woff2?url';
+import spaceGrotesk600 from '@fontsource/space-grotesk/files/space-grotesk-latin-600-normal.woff2?url';
+import spaceGrotesk700 from '@fontsource/space-grotesk/files/space-grotesk-latin-700-normal.woff2?url';
+import anton400 from '@fontsource/anton/files/anton-latin-400-normal.woff2?url';
+
+/** Family → weight → file URL. */
+export const FONTS: Record<string, Record<number, string>> = {
+  'Inter': { 100: inter100, 200: inter200, 300: inter300, 400: inter400, 500: inter500, 600: inter600, 700: inter700, 800: inter800, 900: inter900 },
+  'Montserrat': { 100: montserrat100, 200: montserrat200, 300: montserrat300, 400: montserrat400, 500: montserrat500, 600: montserrat600, 700: montserrat700, 800: montserrat800, 900: montserrat900 },
+  'Playfair Display': { 400: playfairDisplay400, 500: playfairDisplay500, 600: playfairDisplay600, 700: playfairDisplay700, 800: playfairDisplay800, 900: playfairDisplay900 },
+  'Bebas Neue': { 400: bebasNeue400 },
+  'Space Grotesk': { 300: spaceGrotesk300, 400: spaceGrotesk400, 500: spaceGrotesk500, 600: spaceGrotesk600, 700: spaceGrotesk700 },
+  'Anton': { 400: anton400 },
+};
+
+/** The weights a family has, lightest first. */
+export const weightsOf = (family: string): number[] => Object.keys(FONTS[family] ?? FONTS.Inter!).map(Number);
+
+/** The family's file nearest to `weight`, or null for a family we don't ship (text then draws in Inter). */
+export async function loadFont(family: string, weight: number): Promise<ArrayBuffer | null> {
+  const files = FONTS[family];
+  if (!files) return null;
+  const nearest = weightsOf(family).reduce((a, b) => (Math.abs(b - weight) < Math.abs(a - weight) ? b : a));
+  const res = await fetch(files[nearest]!);
+  return res.ok ? res.arrayBuffer() : null;
+}

@@ -8,13 +8,26 @@ import { keyBetween, keysAfter } from '../doc/fractional.ts';
 import { createNode, type FramePreset } from '../doc/factory.ts';
 import { starterDoc } from '../doc/serialize.ts';
 import type { Op } from '../doc/ops.ts';
-import type { GradientPaint, Node, NodeProp } from '../doc/types.ts';
+import type { GradientPaint, Node, NodeProp, TextProps } from '../doc/types.ts';
 import { applyVector, invert, multiply, rotation, translation, type Affine, type Point, type Rect } from '../geom/affine.ts';
 import { localFor, worldBounds } from './bounds.ts';
 import { frameAt } from './hit.ts';
 import type { Guide } from './snap.ts';
 
-export type ToolId = 'select' | 'rect' | 'ellipse' | 'frame';
+export type ToolId = 'select' | 'rect' | 'ellipse' | 'frame' | 'text';
+
+/** Text layout as the renderer measures it: the box the text needs. */
+export type MeasureText = (text: TextProps, width: number | null) => { width: number; height: number };
+
+/** Before fonts load (and in tests): a rough guess from character counts. */
+export const estimateText: MeasureText = (t, width) => {
+  const line = t.lineHeight ?? t.size * 1.2;
+  const lines = t.content.split('\n');
+  const longest = Math.max(1, ...lines.map(l => l.length));
+  const w = longest * (t.size * 0.55 + t.letterSpacing);
+  const wrapped = width ? lines.reduce((sum, l) => sum + Math.max(1, Math.ceil((l.length * (t.size * 0.55 + t.letterSpacing)) / width)), 0) : lines.length;
+  return { width: width ?? w, height: wrapped * line };
+};
 
 /** One paint on a node: a fill, or a stroke's paint. */
 export interface GradientTarget { nodeId: string; prop: 'fills' | 'strokes'; index: number }
@@ -39,6 +52,8 @@ export class Editor {
   multiSelect = false;
   /** World-space marquee while one is being dragged (drawn by the renderer). */
   marquee: Rect | null = null;
+  /** Lays text out; the engine swaps in CanvasKit's measurement once it has loaded. */
+  measureText: MeasureText = estimateText;
   /** The gradient whose end points are being dragged on the canvas, if any. */
   gradientEdit: GradientTarget | null = null;
   /** World-space snap guides while a move is snapping (drawn by the renderer). */
@@ -158,6 +173,50 @@ export class Editor {
   }
 
   commitEdit(): void { this.history.commit(); }
+
+  // ── Text ─────────────────────────────────────────────────────
+
+  /** The size an auto-sized text box should have, or null for a fixed one. */
+  textBox(text: TextProps, width: number): { width: number; height: number } | null {
+    if (text.sizing === 'fixed') return null;
+    const m = this.measureText(text, text.sizing === 'autoHeight' ? width : null);
+    const r = (v: number) => Math.ceil(v * 100) / 100;
+    return { width: text.sizing === 'autoWidth' ? r(m.width) : width, height: r(m.height) };
+  }
+
+  /** Ops that change a text node's content or style and keep an auto-sized box in step. */
+  textOps(n: Node, patch: Partial<TextProps>): Op[] {
+    const text = { ...n.text!, ...patch };
+    const ops: Op[] = [{ t: 'set', id: n.id, prop: 'text', value: text }];
+    const box = this.textBox(text, n.width);
+    if (box) ops.push({ t: 'set', id: n.id, prop: 'width', value: box.width }, { t: 'set', id: n.id, prop: 'height', value: box.height });
+    return ops;
+  }
+
+  /** Change text props on every text node in `ids` (live, like `preview`; then `commitEdit`). */
+  previewText(ids: string[], patch: Partial<TextProps>): void {
+    this.history.begin('Edit text');
+    this.history.rewind();
+    const nodes = ids.map(id => this.doc.get(id)).filter((n): n is Node => n?.type === 'text');
+    this.transact('Edit text', () => nodes.flatMap(n => this.textOps(n, patch)));
+  }
+
+  /**
+   * Re-measure auto-sized text after a font arrives. Not an undo step: the
+   * size is derived from the text, which is what the user changed.
+   */
+  refreshTextBoxes(): void {
+    let changed = false;
+    for (const n of this.doc.nodes.values()) {
+      if (n.type !== 'text' || !n.text) continue;
+      const box = this.textBox(n.text, n.width);
+      if (!box || (Math.abs(box.width - n.width) < 0.5 && Math.abs(box.height - n.height) < 0.5)) continue;
+      this.doc.apply({ t: 'set', id: n.id, prop: 'width', value: box.width });
+      this.doc.apply({ t: 'set', id: n.id, prop: 'height', value: box.height });
+      changed = true;
+    }
+    if (changed) this.emit();
+  }
 
   rename(id: string, name: string): void {
     if (name.trim()) this.setProp([id], 'name', name.trim(), 'Rename');
@@ -323,6 +382,7 @@ export class Editor {
       const world = multiply(translation(w[4], w[5]), rotation(Math.atan2(w[1], w[0])));
       const r = (v: number) => Math.round(v * 100) / 100;
       return [
+        ...(n.type === 'text' && n.text && n.text.sizing !== 'fixed' ? [{ t: 'set', id: n.id, prop: 'text', value: { ...n.text, sizing: 'fixed' } } as Op] : []),
         { t: 'set', id: n.id, prop: 'transform', value: localFor(this.doc, world, n.parentId) },
         { t: 'set', id: n.id, prop: 'width', value: r(n.width * Math.hypot(w[0], w[1])) },
         { t: 'set', id: n.id, prop: 'height', value: r(n.height * Math.hypot(w[2], w[3])) },

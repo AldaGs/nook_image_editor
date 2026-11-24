@@ -29,6 +29,10 @@ export function createNode(type: NodeType, props: Partial<Node> & { parentId: st
   };
   if (type === 'rect' || type === 'frame') base.cornerRadius ??= 0;
   if (type === 'frame') base.clipContent ??= true;
+  if (type === 'text') {
+    base.text ??= { content: 'Text', family: 'Inter', weight: 400, size: 48, lineHeight: null, letterSpacing: 0, align: 'left', sizing: 'autoWidth' };
+    if (!props.fills) base.fills = [solid({ r: 0, g: 0, b: 0, a: 1 })];
+  }
   return base;
 }
 

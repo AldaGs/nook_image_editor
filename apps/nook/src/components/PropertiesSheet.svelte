@@ -1,11 +1,12 @@
 <!-- Design sheet for the selection: layer opacity and blend, fills, strokes, effects.
      Edits apply to every selected layer, starting from the first one's values. -->
 <script lang="ts">
-  import { BLEND_MODES, newEffect, solid, type BlendMode, type Effect, type Node, type Paint, type Stroke } from '@nook/engine';
+  import { BLEND_MODES, newEffect, solid, type BlendMode, type Effect, type Node, type Paint, type Stroke, type TextProps } from '@nook/engine';
   import IconButton from './IconButton.svelte';
   import PaintRow, { fromHex, toHex } from './PaintRow.svelte';
   import Sheet from './Sheet.svelte';
   import { editor, ui } from '../lib/session.svelte';
+  import { FONTS, weightsOf } from '../lib/fonts';
 
   let { onClose, onEditGradient }: {
     onClose: () => void;
@@ -34,6 +35,16 @@
   const remove = <T,>(list: T[], i: number) => list.filter((_, j) => j !== i);
   const num = (v: string, min = -Infinity) => Math.max(min, Number.isFinite(+v) ? +v : 0);
 
+  /** Text edits keep auto-sized boxes in step (one undo step each). */
+  function text(patch: Partial<TextProps>) {
+    editor.previewText(ids, patch);
+    editor.commitEdit();
+  }
+  const WEIGHT_NAMES: Record<number, string> = {
+    100: 'Thin', 200: 'Extra light', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'Semibold', 700: 'Bold', 800: 'Extra bold', 900: 'Black',
+  };
+  const nearestWeight = (family: string, w: number) => weightsOf(family).reduce((a, b) => (Math.abs(b - w) < Math.abs(a - w) ? b : a));
+
   // New paints go on top, like Figma.
   const grey = () => solid({ r: 0.85, g: 0.85, b: 0.87, a: 1 });
   const addFill = (node: Node) => edit('fills', [...node.fills, grey()]);
@@ -55,6 +66,42 @@
         </select>
       </div>
     </section>
+
+    {#if n.type === 'text' && n.text}
+      {@const t = n.text}
+      <section>
+        <h3>Text</h3>
+        <div class="row">
+          <select aria-label="Font" value={t.family}
+            onchange={e => text({ family: e.currentTarget.value, weight: nearestWeight(e.currentTarget.value, t.weight) })}>
+            {#each Object.keys(FONTS) as f (f)}<option value={f}>{f}</option>{/each}
+          </select>
+          <select aria-label="Weight" value={t.weight} onchange={e => text({ weight: +e.currentTarget.value })}>
+            {#each weightsOf(t.family) as w (w)}<option value={w}>{WEIGHT_NAMES[w]}</option>{/each}
+          </select>
+        </div>
+        <div class="row wrap">
+          <label class="field">Size<input type="number" inputmode="decimal" min="1" value={t.size}
+            onchange={e => text({ size: num(e.currentTarget.value, 1) })} /></label>
+          <label class="field">Line<input type="number" inputmode="decimal" min="0" placeholder="Auto" value={t.lineHeight ?? ''}
+            onchange={e => text({ lineHeight: e.currentTarget.value === '' ? null : num(e.currentTarget.value, 0) || null })} /></label>
+          <label class="field">Spacing<input type="number" inputmode="decimal" value={t.letterSpacing}
+            onchange={e => text({ letterSpacing: num(e.currentTarget.value) })} /></label>
+        </div>
+        <div class="row">
+          <select aria-label="Alignment" value={t.align} onchange={e => text({ align: e.currentTarget.value as TextProps['align'] })}>
+            <option value="left">Left</option>
+            <option value="center">Centre</option>
+            <option value="right">Right</option>
+          </select>
+          <select aria-label="Box sizing" value={t.sizing} onchange={e => text({ sizing: e.currentTarget.value as TextProps['sizing'] })}>
+            <option value="autoWidth">Auto width</option>
+            <option value="autoHeight">Auto height</option>
+            <option value="fixed">Fixed size</option>
+          </select>
+        </div>
+      </section>
+    {/if}
 
     {#if painted}
       <section>

@@ -41,6 +41,22 @@ export interface Blur { kind: 'layerBlur' | 'backgroundBlur'; visible: boolean; 
 /** The sticker outline (stage 5) joins this union. */
 export type Effect = Shadow | Blur;
 
+/**
+ * Text content and style. `sizing` says which way the box follows the text:
+ * autoWidth hugs each line (no wrapping), autoHeight keeps its width and
+ * grows down as lines wrap, fixed keeps both.
+ */
+export interface TextProps {
+  content: string;
+  family: string;
+  weight: number;               // 100–900
+  size: number;                 // px
+  lineHeight: number | null;    // px; null = the font's own
+  letterSpacing: number;        // px
+  align: 'left' | 'center' | 'right';
+  sizing: 'autoWidth' | 'autoHeight' | 'fixed';
+}
+
 export interface MotionHints { role?: 'comp' | 'precomp' | 'layer'; notes?: string }
 
 export interface Node {
@@ -61,6 +77,7 @@ export interface Node {
   effects: Effect[];
   cornerRadius?: number;  // rect and frame
   clipContent?: boolean;  // frame
+  text?: TextProps;       // text
   motion?: MotionHints;   // PBC/AE export hints (stage 4)
 }
 

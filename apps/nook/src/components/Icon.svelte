@@ -24,13 +24,14 @@
   import share from 'lucide-static/icons/share.svg?raw';
   import square from 'lucide-static/icons/square.svg?raw';
   import trash from 'lucide-static/icons/trash-2.svg?raw';
+  import type_ from 'lucide-static/icons/type.svg?raw';
   import undo from 'lucide-static/icons/undo-2.svg?raw';
   import ungroup from 'lucide-static/icons/ungroup.svg?raw';
   import x from 'lucide-static/icons/x.svg?raw';
 
   const ICONS = {
     arrowDown, arrowUp, chevronDown, chevronRight, circle, eye, eyeOff, frame, group, layers,
-    layoutTemplate, listChecks, lock, lockOpen, maximize, minus, plus, pointer, redo, share, sliders, square, trash,
+    layoutTemplate, listChecks, lock, lockOpen, maximize, minus, plus, pointer, redo, share, sliders, square, trash, type: type_,
     undo, ungroup, x,
   };
   export type IconName = keyof typeof ICONS;

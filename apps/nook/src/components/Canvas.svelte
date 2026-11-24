@@ -6,6 +6,7 @@
   import wasmUrl from 'canvaskit-wasm/bin/canvaskit.wasm?url';
   import { canvasTheme } from '../lib/theme.svelte';
   import { editor } from '../lib/session.svelte';
+  import { loadFont } from '../lib/fonts';
   import ActionBar from './ActionBar.svelte';
   import FrameLabels from './FrameLabels.svelte';
   import ViewInfo from './ViewInfo.svelte';
@@ -26,6 +27,7 @@
     createEngine(canvas, {
       wasmUrl,
       editor,
+      loadFont,
       theme: canvasTheme(),
       // Show fps while frames are drawn continuously; hide it shortly after they stop.
       onFps: v => { fps = v; clearTimeout(fpsTimer); fpsTimer = setTimeout(() => (fps = null), 1500); },
