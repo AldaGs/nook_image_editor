@@ -94,3 +94,30 @@ export function snapBox(box: Rect, others: Rect[], tol: number): { dx: number; d
     guides: [...(sx?.guides(moved) ?? []), ...(sy?.guides(moved) ?? [])],
   };
 }
+
+/**
+ * Snap the edges a resize is dragging (`x`/`y`: which edge moves on that axis)
+ * to other boxes' edges and centres. Returns the snapped box and its guides.
+ */
+export function snapEdges(box: Rect, moving: { x?: 'lo' | 'hi'; y?: 'lo' | 'hi' }, others: Rect[], tol: number): { box: Rect; guides: Guide[] } {
+  const out = { ...box };
+  const guides: Guide[] = [];
+  for (const ax of ['x', 'y'] as const) {
+    const side = moving[ax];
+    if (!side) continue;
+    const v = side === 'lo' ? lo(out, ax) : hi(out, ax);
+    let best: number | null = null;
+    for (const t of others.flatMap(o => stops(o, ax))) {
+      if (Math.abs(t - v) < tol && (best === null || Math.abs(t - v) < Math.abs(best - v))) best = t;
+    }
+    if (best === null) continue;
+    const d = best - v;
+    if (ax === 'x') { if (side === 'lo') { out.x += d; out.width -= d; } else out.width += d; }
+    else { if (side === 'lo') { out.y += d; out.height -= d; } else out.height += d; }
+    const t = best;
+    const hit = [out, ...others.filter(o => stops(o, ax).some(s => Math.abs(s - t) < 1e-6))];
+    const o = other(ax);
+    guides.push(line(o, Math.min(...hit.map(r => lo(r, o))), Math.max(...hit.map(r => hi(r, o))), t));
+  }
+  return { box: out, guides };
+}

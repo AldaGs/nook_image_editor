@@ -29,7 +29,7 @@
   const label = (m: string) => m.replace(/[A-Z]/g, c => ` ${c.toLowerCase()}`).replace(/^./, c => c.toUpperCase());
 
   /** Live while dragging (done = false), one undo step when done. */
-  function edit(prop: 'opacity' | 'blendMode' | 'fills' | 'strokes' | 'effects', value: unknown, done = true) {
+  function edit(prop: 'opacity' | 'blendMode' | 'fills' | 'strokes' | 'effects' | 'width' | 'height', value: unknown, done = true) {
     editor.preview(ids, prop, value);
     if (done) editor.commitEdit();
   }
@@ -71,6 +71,18 @@
         </select>
       </div>
     </section>
+
+    {#if n.type === 'frame'}
+      <section>
+        <h3>Board</h3>
+        <div class="row">
+          <label class="field">W<input type="number" inputmode="numeric" min="1" value={Math.round(n.width)}
+            onchange={e => edit('width', Math.round(num(e.currentTarget.value, 1)))} /></label>
+          <label class="field">H<input type="number" inputmode="numeric" min="1" value={Math.round(n.height)}
+            onchange={e => edit('height', Math.round(num(e.currentTarget.value, 1)))} /></label>
+        </div>
+      </section>
+    {/if}
 
     {#if n.type === 'text' && n.text}
       {@const t = n.text}
@@ -189,14 +201,15 @@
   section:first-of-type { border-top: none; }
   header { display: flex; align-items: center; justify-content: space-between; }
   h3 { margin: 8px 0 4px; font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
-  .row { display: flex; align-items: center; gap: 6px; min-height: var(--touch-target); }
+  .row { min-width: 0; display: flex; align-items: center; gap: 6px; min-height: var(--touch-target); }
   .row.wrap { flex-wrap: wrap; }
   .indent { padding-left: 12px; }
   .row > input[type='range'] { flex: 1; }
   .row > select { flex: 1; min-width: 0; }
   .value { width: 3em; text-align: right; font-size: 13px; color: var(--text-muted); }
   .field { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-muted); }
-  .field input { width: 3.6em; }
+  .field input { width: 3.6em; min-width: 0; }
+  section { min-width: 0; }
   .full { flex-basis: 100%; }
   .empty { padding: var(--space); color: var(--text-muted); }
 </style>

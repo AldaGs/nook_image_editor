@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { snapBox } from './snap.ts';
+import { snapBox, snapEdges } from './snap.ts';
 
 test('snaps the nearest edge or centre within tolerance, with a guide', () => {
   const other = { x: 100, y: 0, width: 50, height: 50 };
@@ -26,4 +26,10 @@ test('equal spacing: centres between two boxes, or repeats a neighbour gap', () 
   assert.ok(r.guides.some(g => g.a.x === 400 && g.b.x === 600));
   // Out of the row: no spacing snap.
   assert.equal(snapBox({ x: 603, y: 500, width: 100, height: 50 }, [a, b], 5).dx, 0);
+});
+
+test('snapEdges pulls only the dragged edge onto a nearby edge', () => {
+  const r = snapEdges({ x: 0, y: 0, width: 97, height: 50 }, { x: 'hi' }, [{ x: 100, y: 200, width: 40, height: 40 }], 6);
+  assert.deepEqual(r.box, { x: 0, y: 0, width: 100, height: 50 });
+  assert.equal(r.guides.length, 1);
 });

@@ -5,7 +5,7 @@
 import { Doc } from '../doc/document.ts';
 import { History } from '../doc/history.ts';
 import { keyBetween, keysAfter } from '../doc/fractional.ts';
-import { createNode, type FramePreset } from '../doc/factory.ts';
+import { createNode } from '../doc/factory.ts';
 import { starterDoc } from '../doc/serialize.ts';
 import type { Op } from '../doc/ops.ts';
 import { isGradient, type GradientPaint, type ImagePaint, type Node, type NodeProp, type TextProps } from '../doc/types.ts';
@@ -56,6 +56,8 @@ export class Editor {
   multiSelect = false;
   /** Shade the parts of story-shaped boards that social apps cover with their UI. */
   safeZones = false;
+  /** How strongly the safe zones are shaded, 0–1. */
+  safeZoneOpacity = 0.18;
   /** World-space marquee while one is being dragged (drawn by the renderer). */
   marquee: Rect | null = null;
   /** The text layer being edited on the canvas, if any. */
@@ -132,6 +134,7 @@ export class Editor {
   setTool(tool: ToolId): void { this.tool = tool; this.emit(); }
   setMultiSelect(on: boolean): void { this.multiSelect = on; this.emit(); }
   setSafeZones(on: boolean): void { this.safeZones = on; this.emit(); }
+  setSafeZoneOpacity(v: number): void { this.safeZoneOpacity = Math.min(1, Math.max(0, v)); this.emit(); }
 
   // ── Selection ────────────────────────────────────────────────
 
@@ -296,7 +299,7 @@ export class Editor {
   }
 
   /** Add a frame from a preset to the right of the existing boards, and select it. */
-  addFrame(preset: FramePreset): Node {
+  addFrame(preset: { name: string; width: number; height: number }): Node {
     const boards = this.doc.children(this.pageId).filter(n => n.type === 'frame');
     const right = worldBounds(this.doc, boards);
     const x = right ? right.x + right.width + 120 : 0;

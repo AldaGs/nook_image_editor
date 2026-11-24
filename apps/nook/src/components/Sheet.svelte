@@ -26,7 +26,10 @@
     bottom: 0;
     z-index: 21;
     max-height: 70vh;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
+    box-sizing: border-box;
+    max-width: 100vw;
     padding: 0 var(--space) calc(var(--space) + env(safe-area-inset-bottom));
     background: var(--surface);
     border-radius: calc(var(--radius) * 1.6) calc(var(--radius) * 1.6) 0 0;

@@ -9,6 +9,13 @@ const SAVE_DELAY = 400; // ms after the last change
 
 export const editor = new Editor(starterDoc());
 // Dev only: poke the document from the browser console as `nook`.
+// The safe-zone shading strength is a per-device preference.
+const SAFE_ZONE_KEY = 'nook.safeZoneOpacity';
+try { const v = parseFloat(localStorage.getItem(SAFE_ZONE_KEY) ?? ''); if (Number.isFinite(v)) editor.setSafeZoneOpacity(v); } catch { /* no storage */ }
+export function setSafeZoneOpacity(v: number): void {
+  editor.setSafeZoneOpacity(v);
+  try { localStorage.setItem(SAFE_ZONE_KEY, String(editor.safeZoneOpacity)); } catch { /* no storage */ }
+}
 if (import.meta.env.DEV) (globalThis as Record<string, unknown>).nook = editor;
 
 /** Mirrors editor.state; components read this to re-render on changes. */

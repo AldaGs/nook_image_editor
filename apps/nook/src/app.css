@@ -1,7 +1,9 @@
 /* Global layout: a full-screen app with no page scroll or browser gestures. */
 html, body, #app {
   height: 100%;
+  width: 100%;
   margin: 0;
+  overflow: hidden; /* nothing may widen the page past the screen */
 }
 
 body {
@@ -31,6 +33,7 @@ input:not([type='color']):not([type='range']), select {
   border: 1px solid var(--border);
   border-radius: 8px;
   box-sizing: border-box;
+  max-width: 100%;
 }
 input[type='number'] { padding: 0 4px; text-align: right; }
 /* Sliders, iOS style: a thin track filled up to the thumb (set --fill on the

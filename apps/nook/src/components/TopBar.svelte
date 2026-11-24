@@ -38,10 +38,11 @@
     background: var(--surface);
     border-bottom: 1px solid var(--border);
   }
-  .group { display: flex; align-items: center; gap: 2px; }
+  .group { display: flex; align-items: center; gap: 2px; flex: none; }
+  .group:first-child { flex: 1 1 auto; min-width: 0; overflow: hidden; }
   .title { font-weight: 600; margin: 0 var(--space); }
-  .saved { color: var(--text-muted); font-size: 12px; }
+  .saved { color: var(--text-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .saved.dirty { color: var(--accent); }
   /* On narrow phones the title gives way to the buttons. */
-  @media (max-width: 380px) { .title { display: none; } }
+  @media (max-width: 440px) { .title { display: none; } }
 </style>

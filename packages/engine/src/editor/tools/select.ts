@@ -6,7 +6,7 @@
 import { apply, invert, multiply, rotation, translation, type Affine, type Point, type Rect } from '../../geom/affine.ts';
 import type { Node } from '../../doc/types.ts';
 import { localBox, worldBounds } from '../bounds.ts';
-import { snapBox } from '../snap.ts';
+import { snapBox, snapEdges } from '../snap.ts';
 import { gradientHandles, handleAt, handlesFor, selectionBox, type Handle, type SelectionBox } from '../handles.ts';
 import { hitStack, marqueeHits } from '../hit.ts';
 import { dragThreshold, hitRadius, type PointerInfo, type Tool, type ToolContext } from './tool.ts';
@@ -15,7 +15,7 @@ type Mode =
   | { kind: 'idle' }
   | { kind: 'press'; hit: Node | null; stack: Node[] }    // down, not yet a drag
   | { kind: 'move'; nodes: Node[]; start: Map<string, Affine>; box: Rect | null; others: Rect[] }
-  | { kind: 'resize'; sel: SelectionBox; handle: Handle }
+  | { kind: 'resize'; sel: SelectionBox; handle: Handle; others: Rect[] }
   | { kind: 'rotate'; node: Node; t0: Affine; centre: Point; a0: number }
   | { kind: 'gradient'; end: 'from' | 'to' }
   | { kind: 'textSelect'; anchor: number }
@@ -78,7 +78,7 @@ export class SelectTool implements Tool {
         const centre = apply(editor.doc.worldTransform(node.id), { x: box.x + box.width / 2, y: box.y + box.height / 2 });
         this.mode = { kind: 'rotate', node, t0: node.transform, centre, a0: Math.atan2(p.world.y - centre.y, p.world.x - centre.x) };
       } else {
-        this.mode = { kind: 'resize', sel, handle };
+        this.mode = { kind: 'resize', sel, handle, others: this.snapTargets(sel.nodes) };
       }
       return;
     }
@@ -159,6 +159,7 @@ export class SelectTool implements Tool {
     if (m.kind === 'press') this.tap(m.stack, p);
     if (m.kind === 'textSelect') { this.mode = { kind: 'idle' }; this.downAt = null; return; }
     if (m.kind === 'move') { editor.guides = []; editor.dropAt(m.nodes, p.world); }
+    if (m.kind === 'resize') editor.guides = [];
     if (m.kind === 'move' || m.kind === 'resize' || m.kind === 'rotate' || m.kind === 'gradient') editor.history.commit();
     if (m.kind === 'marquee') { editor.marquee = null; editor.emit(); }
     this.mode = { kind: 'idle' };
@@ -244,6 +245,22 @@ export class SelectTool implements Tool {
       const s = Math.max(Math.abs(x1 - x0) / box.width, Math.abs(y1 - y0) / box.height);
       if (m.handle.fx === 0) x0 = x1 - box.width * s; else x1 = x0 + box.width * s;
       if (m.handle.fy === 0) y0 = y1 - box.height * s; else y1 = y0 + box.height * s;
+    }
+    // Smart guides: snap the dragged edges, in world space, while the box isn't rotated
+    // (Alt or Shift-for-aspect turns it off).
+    editor.guides = [];
+    const [a, b, c, d, e, f] = toWorld;
+    if (!p.alt && !p.shift && Math.abs(b) < 1e-9 && Math.abs(c) < 1e-9 && a > 0 && d > 0) {
+      const side = (fx: number, v0: number, v1: number) => (fx === 0.5 ? undefined : (fx === 0) === (v0 <= v1) ? 'lo' : 'hi');
+      const wx0 = Math.min(x0, x1), wy0 = Math.min(y0, y1);
+      const world = { x: a * wx0 + e, y: d * wy0 + f, width: a * Math.abs(x1 - x0), height: d * Math.abs(y1 - y0) };
+      const snap = snapEdges(world, { x: side(m.handle.fx, x0, x1), y: side(m.handle.fy, y0, y1) }, m.others, 6 / this.ctx.camera.zoom);
+      editor.guides = snap.guides;
+      // Back to box space, keeping which side is which.
+      const bx0 = (snap.box.x - e) / a, bx1 = bx0 + snap.box.width / a;
+      const by0 = (snap.box.y - f) / d, by1 = by0 + snap.box.height / d;
+      if (x0 <= x1) { x0 = bx0; x1 = bx1; } else { x1 = bx0; x0 = bx1; }
+      if (y0 <= y1) { y0 = by0; y1 = by1; } else { y1 = by0; y0 = by1; }
     }
     // Dragging past the opposite edge flips the box instead of going negative.
     const to = { x: Math.min(x0, x1), y: Math.min(y0, y1), width: Math.max(1, Math.abs(x1 - x0)), height: Math.max(1, Math.abs(y1 - y0)) };

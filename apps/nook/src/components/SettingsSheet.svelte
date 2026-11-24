@@ -7,10 +7,12 @@
     type ModelId,
   } from '@nook/ai';
   import Sheet from './Sheet.svelte';
+  import { editor, setSafeZoneOpacity } from '../lib/session.svelte';
 
   let { onClose }: { onClose: () => void } = $props();
 
   let on = $state(aiEnabled());
+  let safeOpacity = $state(editor.safeZoneOpacity);
   let model = $state<ModelId>(backgroundModel());
   let installed = $state<Partial<Record<ModelId, boolean>>>({});
   let stored = $state<{ path: string; bytes: number }[]>([]);
@@ -32,6 +34,17 @@
 </script>
 
 <Sheet title="Settings" {onClose}>
+  <section>
+    <h3>Canvas</h3>
+    <div class="row">
+      <span class="name">Safe zone opacity</span>
+      <input type="range" min="0.05" max="0.9" step="0.01" aria-label="Safe zone opacity" value={safeOpacity}
+        style:--fill="{((safeOpacity - 0.05) / 0.85) * 100}%"
+        oninput={e => { safeOpacity = +e.currentTarget.value; setSafeZoneOpacity(safeOpacity); if (!editor.safeZones) editor.setSafeZones(true); }} />
+      <span class="muted pct">{Math.round(safeOpacity * 100)}%</span>
+    </div>
+  </section>
+
   <section>
     <h3>AI</h3>
     <label class="switch">
@@ -110,6 +123,8 @@
   input[role='switch']:checked::after { transform: translateX(20px); }
   .row { display: flex; align-items: center; gap: 8px; min-height: var(--touch-target); }
   .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row input[type='range'] { flex: 1.4; min-width: 0; }
+  .pct { width: 3em; text-align: right; }
   .muted { color: var(--text-muted); font-size: 12px; }
   p.muted { margin: 4px 0; }
   .link { background: none; border: none; color: var(--text); text-decoration: underline; min-height: var(--touch-target); }
