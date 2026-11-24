@@ -8,7 +8,7 @@
 
   let picker: HTMLInputElement;
 
-  let { onAddBoard }: { onAddBoard: () => void } = $props();
+  let { onAddBoard, onStickers }: { onAddBoard: () => void; onStickers: () => void } = $props();
 
   const TOOLS: { id: ToolId; icon: IconName; label: string }[] = [
     { id: 'select', icon: 'pointer', label: 'Select (V)' },
@@ -24,6 +24,7 @@
     <IconButton icon={t.icon} label={t.label} active={ui.state.tool === t.id} onclick={() => editor.setTool(t.id)} />
   {/each}
   <IconButton icon="image" label="Add picture" onclick={() => picker.click()} />
+  <IconButton icon="sticker" label="Stickers" onclick={onStickers} />
   <!-- The photo picker on phones; a file dialog elsewhere. -->
   <input bind:this={picker} type="file" accept="image/*" multiple hidden
     onchange={e => { importImages(imageFiles(e.currentTarget.files)); e.currentTarget.value = ''; }} />

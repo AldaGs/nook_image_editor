@@ -2,11 +2,13 @@
 <script lang="ts">
   import IconButton from './IconButton.svelte';
   import { editor, ui } from '../lib/session.svelte';
+  import { saveSticker } from '../lib/stickers';
 
   let { onDesign }: { onDesign: () => void } = $props();
 
   const selected = $derived.by(() => { ui.state.version; return editor.selectedNodes(); });
   const one = $derived(selected.length === 1 ? selected[0] : null);
+  const hasPicture = $derived(!!one?.fills.some(f => f.kind === 'image'));
   const hasGroup = $derived(selected.some(n => n.type === 'group'));
 </script>
 
@@ -18,6 +20,9 @@
     <IconButton icon="arrowDown" label="Send backward ([)" disabled={!one} onclick={() => one && editor.reorder(one.id, -1)} />
     <IconButton icon="group" label="Group (Ctrl+G)" onclick={() => editor.group()} />
     <IconButton icon="ungroup" label="Ungroup (Ctrl+Shift+G)" disabled={!hasGroup} onclick={() => editor.ungroup()} />
+    {#if hasPicture}
+      <IconButton icon="bookmarkPlus" label="Save to stickers" onclick={async () => { if (one && await saveSticker(one)) ui.error = `Saved "${one.name}" to your stickers.`; }} />
+    {/if}
     <IconButton icon="trash" label="Delete" onclick={() => editor.deleteSelection()} />
   </div>
 {/if}

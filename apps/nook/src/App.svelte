@@ -10,6 +10,7 @@
   import PresetSheet from './components/PresetSheet.svelte';
   import PropertiesSheet from './components/PropertiesSheet.svelte';
   import ExportSheet from './components/ExportSheet.svelte';
+  import StickerSheet from './components/StickerSheet.svelte';
   import SettingsSheet from './components/SettingsSheet.svelte';
   import Toolbar from './components/Toolbar.svelte';
   import TopBar from './components/TopBar.svelte';
@@ -24,6 +25,7 @@
   let designOpen = $state(false);
   let exportOpen = $state(false);
   let settingsOpen = $state(false);
+  let stickersOpen = $state(false);
   let notice = $state<string | null>(null);
 
   // Zoom to fit once both the saved document and the canvas are ready.
@@ -73,10 +75,11 @@
     <Canvas bind:engine onDesign={() => (designOpen = true)} />
     {#if layersOpen}<LayersPanel onClose={() => (layersOpen = false)} />{/if}
   </div>
-  <Toolbar onAddBoard={() => (presetsOpen = true)} />
+  <Toolbar onAddBoard={() => (presetsOpen = true)} onStickers={() => (stickersOpen = true)} />
 </main>
 
 {#if presetsOpen}<PresetSheet onPick={addBoard} onClose={() => (presetsOpen = false)} />{/if}
+{#if stickersOpen}<StickerSheet onClose={() => (stickersOpen = false)} />{/if}
 {#if settingsOpen}<SettingsSheet onClose={() => (settingsOpen = false)} />{/if}
 {#if exportOpen}
   <ExportSheet {engine} onClose={() => (exportOpen = false)} onExportPbc={() => { exportOpen = false; exportToPbc(); }} />
