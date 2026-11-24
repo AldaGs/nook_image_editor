@@ -394,6 +394,7 @@ export class Renderer {
     // An auto-width box is exactly as wide as its longest line; a hair more stops it wrapping.
     const width = t.sizing === 'autoWidth' ? n.width + 1 : n.width;
     const run = (paint: SkPaint) => { const p = this.paragraph(t, paint, width); c.drawParagraph(p, 0, 0); p.delete(); };
+    if (t.background) this.drawLineBoxes(c, t, width);
     const stroke = (s: Stroke, w: number) => this.drawPaint(c, n, s.paint, p => {
       p.setStyle(this.ck.PaintStyle.Stroke);
       p.setStrokeWidth(w);
@@ -404,6 +405,21 @@ export class Renderer {
     for (const f of n.fills) this.drawPaint(c, n, f, run);
     // ponytail: inside strokes draw centred on text; clipping to glyph outlines needs the glyph paths.
     for (const s of n.strokes) if (s.align !== 'outside' && s.width > 0) stroke(s, s.width);
+  }
+
+  /** One box per non-empty line, padded, behind the glyphs. */
+  private drawLineBoxes(c: Canvas, t: TextProps, width: number): void {
+    const bg = t.background!;
+    const p = this.paragraph(t, null, width);
+    const paint = new this.ck.Paint();
+    paint.setAntiAlias(true);
+    paint.setColor(this.ck.Color4f(bg.color.r, bg.color.g, bg.color.b, bg.color.a));
+    for (const box of lineBoxes(p.getLineMetrics(), bg.padding)) {
+      const r = bg.style === 'pill' ? box.height / 2 : 0;
+      c.drawRRect(this.ck.RRectXY(this.ck.XYWHRect(box.x, box.y, box.width, box.height), r, r), paint);
+    }
+    paint.delete();
+    p.delete();
   }
 
   /** Fills, children (clipped for frames) and strokes, without effects. */
@@ -663,4 +679,12 @@ export class Renderer {
     };
     return map[mode];
   }
+}
+
+/** Padded boxes behind each line that has text (pure, for tests). */
+export function lineBoxes(lines: { left: number; width: number; baseline: number; ascent: number; descent: number }[], pad: number): Rect[] {
+  return lines.filter(l => l.width > 0).map(l => ({
+    x: l.left - pad, y: l.baseline - l.ascent - pad / 2,
+    width: l.width + pad * 2, height: l.ascent + l.descent + pad,
+  }));
 }

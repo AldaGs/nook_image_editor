@@ -125,6 +125,7 @@ function toLayer(doc: Doc, n: Node, ctx: Ctx): unknown {
       if (n.type === 'text') {
         const t = n.text!;
         ctx.sh.fonts.add(t.family);
+        if (t.background) ctx.sh.report.push(`Text "${n.name}": line backgrounds (${t.background.style}) aren't in the export yet.`);
         const maxWidth = t.sizing === 'autoWidth' ? null : n.width;
         const block = ctx.sh.measure(t, maxWidth);
         // Nook lines align inside the box; PBC's inside the block, which is then centred.

@@ -68,7 +68,11 @@ export interface TextProps {
   letterSpacing: number;        // px
   align: 'left' | 'center' | 'right';
   sizing: 'autoWidth' | 'autoHeight' | 'fixed';
+  /** A box behind each line: pill (fully round ends) or highlight (square). */
+  background?: TextBackground;
 }
+
+export interface TextBackground { style: 'pill' | 'highlight'; color: RGBA; padding: number }
 
 export interface MotionHints { role?: 'comp' | 'precomp' | 'layer'; notes?: string }
 

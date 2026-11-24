@@ -43,6 +43,12 @@
     editor.previewText(ids, patch);
     editor.commitEdit();
   }
+  /** Line background: colour drags preview live, one undo step when done. */
+  function textBg(bg: TextProps['background'], done = true) {
+    editor.previewText(ids, { background: bg });
+    if (done) editor.commitEdit();
+  }
+  let bgPicker = $state(false);
   const WEIGHT_NAMES: Record<number, string> = {
     100: 'Thin', 200: 'Extra light', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'Semibold', 700: 'Bold', 800: 'Extra bold', 900: 'Black',
   };
@@ -137,6 +143,24 @@
             <option value="autoHeight">Auto height</option>
             <option value="fixed">Fixed size</option>
           </select>
+        </div>
+        <div class="row wrap">
+          <select aria-label="Line background" value={t.background?.style ?? 'none'}
+            onchange={e => { const v = e.currentTarget.value; textBg(v === 'none' ? undefined
+              : { color: { r: 1, g: 1, b: 1, a: 1 }, padding: Math.round(t.size * 0.4), ...t.background, style: v as 'pill' | 'highlight' }); }}>
+            <option value="none">No background</option>
+            <option value="pill">Pill</option>
+            <option value="highlight">Highlight</option>
+          </select>
+          {#if t.background}
+            {@const bg = t.background}
+            <Swatch color={bg.color} label="Background colour" size={32} open={bgPicker} onclick={() => (bgPicker = !bgPicker)} />
+            <label class="field">Padding<input type="number" inputmode="decimal" min="0" value={bg.padding}
+              onchange={e => textBg({ ...bg, padding: num(e.currentTarget.value, 0) })} /></label>
+            {#if bgPicker}
+              <div class="full"><ColorPicker color={bg.color} onchange={(color, done) => textBg({ ...bg, color }, done)} /></div>
+            {/if}
+          {/if}
         </div>
       </section>
     {/if}

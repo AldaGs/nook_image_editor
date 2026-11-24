@@ -4,7 +4,7 @@ Things Nook can design that a `.pbc` can't carry or PBC can't draw yet. PBC impl
 
 Only items marked **Important** affect whether a board looks the same in PBC in everyday use. The rest can wait until PBC gets to them.
 
-Updated: Nov 24, 2026 (Nook Stage 4).
+Updated: Nov 24, 2026 (Nook Stage 5).
 
 ## Important
 
@@ -48,4 +48,5 @@ Updated: Nov 24, 2026 (Nook Stage 4).
 | --- | --- | --- |
 | Fonts | PBC finds fonts by name on the computer that opens the file. The export report lists the fonts to install. | Nothing, if the fonts are installed (PBC's invariant 9: documents store font names, not font files). Bundling Nook's six families with PBC would make this automatic. |
 | Text strokes inside or outside | Exported centred. (Nook draws an outside stroke under the fill; an inside one draws centred.) | The same stroke alignment as for shapes, applied to glyph outlines. |
+| Line backgrounds (pill, highlight) | Left out of the export; the report names each text layer. | A per-line box behind text (style, colour, padding), or Nook exports each line's box as a Rect layer. |
 | Line breaks and line heights | Nook lays text out with Skia, PBC with parley. With the same font they agree closely, but a line can break at a different word near the edge of a box. | Nothing to build. Recheck wrapped text when it matters. |
