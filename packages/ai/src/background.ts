@@ -26,9 +26,11 @@ type GpuAdapter = { limits: Record<string, number>; requestDevice(d: { requiredL
 async function gpuDevice(): Promise<unknown | null> {
   const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<GpuAdapter | null> } }).gpu;
   const adapter = await gpu?.requestAdapter().catch(() => null);
-  if (!adapter || (adapter.limits.maxStorageBuffersPerShaderStage ?? 0) < STORAGE_BUFFERS) return null;
+  // Read as a plain map: the DOM's GPUSupportedLimits type has no string index.
+  const limits = adapter?.limits as unknown as Record<string, number | undefined> | undefined;
+  if (!adapter || !limits || (limits.maxStorageBuffersPerShaderStage ?? 0) < STORAGE_BUFFERS) return null;
   const want = ['maxStorageBuffersPerShaderStage', 'maxStorageBufferBindingSize', 'maxBufferSize', 'maxComputeWorkgroupStorageSize', 'maxComputeInvocationsPerWorkgroup'];
-  const requiredLimits = Object.fromEntries(want.filter(k => adapter.limits[k] !== undefined).map(k => [k, adapter.limits[k]!]));
+  const requiredLimits = Object.fromEntries(want.filter(k => limits[k] !== undefined).map(k => [k, limits[k]!]));
   return adapter.requestDevice({ requiredLimits }).catch(() => null);
 }
 
