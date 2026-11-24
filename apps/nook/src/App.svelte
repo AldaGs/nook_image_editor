@@ -44,7 +44,8 @@
   }
 
   async function exportToPbc() {
-    const { text, report } = exportPbc(editor.doc, editor.pageId);
+    editor.endTextEdit();
+    const { text, report } = exportPbc(editor.doc, editor.pageId, { measure: engine ? (t, w) => engine!.measureLines(t, w) : undefined });
     await shareOrDownload('nook-board.pbc', text, 'application/json');
     notice = report.length ? `Exported with notes:\n• ${report.join('\n• ')}` : null;
   }

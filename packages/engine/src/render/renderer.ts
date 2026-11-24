@@ -295,6 +295,14 @@ export class Renderer {
     return { caret, boxes };
   }
 
+  /** The laid-out block: widest line and total height (what PBC centres text on). */
+  measureLines(t: TextProps, width: number | null): { width: number; height: number } {
+    const p = this.paragraph(t, null, width ?? 1e6);
+    const size = { width: p.getLongestLine(), height: p.getHeight() };
+    p.delete();
+    return size;
+  }
+
   /** Strokes set outside draw first at double width, under the fills; the rest draw on top. */
   private drawText(c: Canvas, n: Node): void {
     const t = n.text!;

@@ -8,6 +8,7 @@ import { loadCanvasKit } from './render/canvaskit.ts';
 import { FrameLoop } from './render/frameloop.ts';
 import { Renderer, type RendererTheme } from './render/renderer.ts';
 import { estimateText, type Editor, type ToolId } from './editor/editor.ts';
+import type { TextProps } from './doc/types.ts';
 import { worldBounds } from './editor/bounds.ts';
 import { SelectTool } from './editor/tools/select.ts';
 import { ShapeTool } from './editor/tools/shape.ts';
@@ -41,6 +42,8 @@ export interface Engine {
    * Returns the caret's screen position for placing the hidden input.
    */
   revealCaret(visible: Rect): Point | null;
+  /** A text block's widest line and height, wrapped at `width` (null: no wrapping). */
+  measureLines(t: TextProps, width: number | null): { width: number; height: number };
   invalidate(): void;
   destroy(): void;
 }
@@ -103,6 +106,7 @@ export async function createEngine(canvas: HTMLCanvasElement, opts: EngineOption
         });
     },
     setTheme(theme) { renderer.theme = theme; loop.invalidate(); },
+    measureLines: (t, width) => renderer.measureLines(t, width),
     revealCaret(visible) {
       const te = editor.textEdit;
       const n = te && editor.doc.get(te.nodeId);
