@@ -104,6 +104,8 @@ export interface Node {
   strokes: Stroke[];
   effects: Effect[];
   cornerRadius?: number;  // rect and frame
+  pointCount?: number;    // polygon sides, star points
+  innerRatio?: number;    // star: inner radius / outer, 0–1
   clipContent?: boolean;  // frame
   text?: TextProps;       // text
   motion?: MotionHints;   // PBC/AE export hints (stage 4)

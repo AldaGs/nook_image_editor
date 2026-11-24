@@ -28,6 +28,12 @@ export function createNode(type: NodeType, props: Partial<Node> & { parentId: st
     ...props,
   };
   if (type === 'rect' || type === 'frame') base.cornerRadius ??= 0;
+  if (type === 'polygon') base.pointCount ??= 3;
+  if (type === 'star') { base.pointCount ??= 5; base.innerRatio ??= 0.4; }
+  if (type === 'line') {
+    if (!props.fills) base.fills = [];
+    if (!props.strokes) base.strokes = [{ paint: solid({ r: 0, g: 0, b: 0, a: 1 }), width: 4, align: 'center' }];
+  }
   if (type === 'frame') base.clipContent ??= true;
   if (type === 'text') {
     base.text ??= { content: 'Text', family: 'Inter', weight: 400, size: 48, lineHeight: null, letterSpacing: 0, align: 'left', sizing: 'autoWidth' };

@@ -194,6 +194,7 @@ There are seven stages, and each one ships a deployable build. Every "done when"
    - Still to check: the 5-minute story on your phone.
    - Done when a story with 3 caption styles and 2 photo stickers takes under 5 minutes on your phone.
 7. **Stage 6: Vectors.** Add the pen tool (tap for points, drag for Bézier handles, close path, with a touch-sized loupe), node editing, line, polygon and star, non-destructive boolean ops (union, subtract, intersect, exclude), flatten, smart guides and snapping (edges, centers, spacing), SVG export, and vector paths in the `.pbc` export.
+   - Built so far: line (L, Shift snaps to 45°), polygon and star tools, with sides/points and inner radius in the Design sheet. They export to `.pbc` as Vector paths (checked with `motion check` and `motion preview`).
    - Done when you can draw an icon and a character silhouette without leaving Nook. **MVP complete.**
 
 **After the MVP, in order:** AE export through a JSX script (desktop), click-to-select and object removal (port from Heirloom), device-to-device sync, auto layout (Yoga), components and instances, SVG/PSD import, then multiplayer.

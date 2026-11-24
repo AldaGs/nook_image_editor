@@ -4,11 +4,14 @@ import { apply, invert, intersects, type Point, type Rect } from '../geom/affine
 import type { Doc } from '../doc/document.ts';
 import type { Node } from '../doc/types.ts';
 import { localBox, worldBounds } from './bounds.ts';
+import { pathContains, shapePath } from '../doc/shapes.ts';
 
 /** Is a world point inside this node's own shape? `slop` widens it (world units). */
 function inside(doc: Doc, node: Node, p: Point, slop: number): boolean {
   const box = localBox(doc, node);
   const q = apply(invert(doc.worldTransform(node.id)), p);
+  const path = shapePath(node);
+  if (path) return pathContains(path, q, slop + Math.max(0, ...node.strokes.map(s => s.width / 2)));
   if (node.type === 'ellipse') {
     const rx = box.width / 2 + slop, ry = box.height / 2 + slop;
     const dx = q.x - box.x - box.width / 2, dy = q.y - box.y - box.height / 2;

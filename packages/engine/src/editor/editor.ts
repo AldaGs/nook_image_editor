@@ -14,7 +14,7 @@ import { localFor, worldBounds } from './bounds.ts';
 import { frameAt } from './hit.ts';
 import type { Guide } from './snap.ts';
 
-export type ToolId = 'select' | 'rect' | 'ellipse' | 'frame' | 'text';
+export type ToolId = 'select' | 'rect' | 'ellipse' | 'polygon' | 'star' | 'line' | 'frame' | 'text';
 
 /** Text layout as the renderer measures it: the box the text needs. */
 export type MeasureText = (text: TextProps, width: number | null) => { width: number; height: number };

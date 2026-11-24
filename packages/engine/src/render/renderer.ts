@@ -14,6 +14,7 @@ import { worldBounds, worldCorners } from '../editor/bounds.ts';
 import type { Editor } from '../editor/editor.ts';
 import { gradientHandles, handlesFor, selectionQuad } from '../editor/handles.ts';
 import { STORY_SAFE_ZONE, isStoryShaped } from '../doc/factory.ts';
+import { shapePath } from '../doc/shapes.ts';
 
 export interface RendererTheme {
   background: RGBA; // the area around the boards
@@ -241,6 +242,22 @@ export class Renderer {
       case 'ellipse':
         b.addOval(rect);
         break;
+      case 'polygon':
+      case 'star':
+      case 'line': {
+        const path = shapePath(n)!;
+        path.anchors.forEach((a, i) => {
+          if (!i) { b.moveTo(a.p.x, a.p.y); return; }
+          const prev = path.anchors[i - 1]!;
+          b.cubicTo(prev.p.x + prev.out.x, prev.p.y + prev.out.y, a.p.x + a.in.x, a.p.y + a.in.y, a.p.x, a.p.y);
+        });
+        if (path.closed) {
+          const last = path.anchors.at(-1)!, first = path.anchors[0]!;
+          b.cubicTo(last.p.x + last.out.x, last.p.y + last.out.y, first.p.x + first.in.x, first.p.y + first.in.y, first.p.x, first.p.y);
+          b.close();
+        }
+        break;
+      }
       default:
         b.delete();
         return null;

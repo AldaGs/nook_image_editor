@@ -9,6 +9,7 @@ export type { ImagePaint, TextProps, TextBackground, Node, NodeType, RGBA, Paint
 export { solid, linear, newEffect, paintColor, isGradient, BLEND_MODES } from './doc/types.ts';
 export type { RendererTheme } from './render/renderer.ts';
 export { localBox } from './editor/bounds.ts';
+export { shapePath, type Anchor, type VectorPath } from './doc/shapes.ts';
 export * as affine from './geom/affine.ts';
 export type { Affine, Point, Rect } from './geom/affine.ts';
 export { toHex, parseHex, rgbToHsv, hsvToRgb, documentColors, type HSVA } from './doc/color.ts';

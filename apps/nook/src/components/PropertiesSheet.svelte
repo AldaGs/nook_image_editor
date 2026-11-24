@@ -30,7 +30,7 @@
   const label = (m: string) => m.replace(/[A-Z]/g, c => ` ${c.toLowerCase()}`).replace(/^./, c => c.toUpperCase());
 
   /** Live while dragging (done = false), one undo step when done. */
-  function edit(prop: 'opacity' | 'blendMode' | 'fills' | 'strokes' | 'effects' | 'width' | 'height' | 'motion', value: unknown, done = true) {
+  function edit(prop: 'opacity' | 'blendMode' | 'fills' | 'strokes' | 'effects' | 'width' | 'height' | 'motion' | 'pointCount' | 'innerRatio', value: unknown, done = true) {
     editor.preview(ids, prop, value);
     if (done) editor.commitEdit();
   }
@@ -118,6 +118,20 @@
         <p class="hint">{topLevel ? 'Each board is a comp in PBC.' : 'Precomps keep blend modes and effects, and clip boards. Layer groups stay editable in place.'}</p>
         <textarea aria-label="Motion notes" rows="2" placeholder="Notes for the animator" value={m.notes ?? ''}
           onchange={e => edit('motion', { ...m, notes: e.currentTarget.value.trim() || undefined })}></textarea>
+      </section>
+    {/if}
+
+    {#if n.type === 'polygon' || n.type === 'star'}
+      <section>
+        <h3>{n.type === 'star' ? 'Star' : 'Polygon'}</h3>
+        <div class="row wrap">
+          <label class="field">{n.type === 'star' ? 'Points' : 'Sides'}<input type="number" inputmode="numeric" min="3" max="60" value={n.pointCount}
+            onchange={e => edit('pointCount', Math.min(60, Math.max(3, Math.round(num(e.currentTarget.value, 3)))))} /></label>
+          {#if n.type === 'star'}
+            <label class="field">Inner<input type="number" inputmode="numeric" min="1" max="100" value={Math.round((n.innerRatio ?? 0.4) * 100)}
+              onchange={e => edit('innerRatio', Math.min(1, Math.max(0.01, num(e.currentTarget.value, 1) / 100)))} />%</label>
+          {/if}
+        </div>
       </section>
     {/if}
 

@@ -11,7 +11,7 @@
 // in the report, never guessed.
 
 import {
-  affine, estimateText, localBox, paintColor,
+  affine, estimateText, localBox, paintColor, shapePath,
   type Doc, type Effect, type Node, type Point, type RGBA, type TextProps,
 } from '@nook/engine';
 
@@ -115,6 +115,21 @@ function toLayer(doc: Doc, n: Node, ctx: Ctx): unknown {
   };
 
   switch (n.type) {
+    case 'polygon':
+    case 'star':
+    case 'line': {
+      // Path points are in the node's own space, so the layer sits at its origin.
+      const path = shapePath(n)!;
+      const v = (p: { x: number; y: number }) => k({ x: round(p.x), y: round(p.y) });
+      const o = affine.apply(n.transform, { x: 0, y: 0 });
+      return {
+        ...layer,
+        transform: transform(o.x, o.y, angle, n.opacity),
+        shape: { Vector: { path: { anchors: path.anchors.map(a => ({ point: v(a.p), in_tan: v(a.in), out_tan: v(a.out) })), closed: path.closed } } },
+        ...paint(n, { x: 0, y: 0 }, report),
+        stroke: stroke(n, report),
+      };
+    }
     case 'rect':
     case 'ellipse':
     case 'text': {

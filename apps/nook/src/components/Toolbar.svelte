@@ -15,6 +15,9 @@
     { id: 'frame', icon: 'frame', label: 'Frame (F)' },
     { id: 'rect', icon: 'square', label: 'Rectangle (R)' },
     { id: 'ellipse', icon: 'circle', label: 'Ellipse (O)' },
+    { id: 'polygon', icon: 'pentagon', label: 'Polygon' },
+    { id: 'star', icon: 'star', label: 'Star' },
+    { id: 'line', icon: 'slash', label: 'Line (L)' },
     { id: 'text', icon: 'type', label: 'Text (T)' },
   ];
 </script>

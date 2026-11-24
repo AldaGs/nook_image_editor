@@ -88,6 +88,9 @@ export async function createEngine(canvas: HTMLCanvasElement, opts: EngineOption
     select: new SelectTool(ctx),
     rect: new ShapeTool(ctx, 'rect'),
     ellipse: new ShapeTool(ctx, 'ellipse'),
+    polygon: new ShapeTool(ctx, 'polygon'),
+    star: new ShapeTool(ctx, 'star'),
+    line: new ShapeTool(ctx, 'line'),
     frame: new ShapeTool(ctx, 'frame'),
     text: new TextTool(ctx),
   };

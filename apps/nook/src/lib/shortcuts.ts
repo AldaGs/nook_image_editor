@@ -20,6 +20,7 @@ export function attachShortcuts(editor: Editor, actions: { fit: () => void }): (
     else if (!mod && key === 'v') editor.setTool('select');
     else if (!mod && key === 'r') editor.setTool('rect');
     else if (!mod && key === 'o') editor.setTool('ellipse');
+    else if (!mod && key === 'l') editor.setTool('line');
     else if (!mod && key === 'f') editor.setTool('frame');
     else if (!mod && key === 't') editor.setTool('text');
     else return;

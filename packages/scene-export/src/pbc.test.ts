@@ -140,3 +140,23 @@ test('a group with a blend mode becomes a precomp; a plain one stays a group', (
   assert.equal(JSON.parse(r2.text).project.comps['1'].root.children[0].precomp, undefined);
   assert.ok(r2.report.some(r => r.includes('Precomp')));
 });
+
+test('polygons, stars and lines become Vector paths at the node origin', () => {
+  const ed = new Editor(starterDoc());
+  const board = ed.doc.children(ed.pageId)[0]!;
+  const star = createNode('star', { parentId: board.id, order: 'y', name: 'Star', transform: [1, 0, 0, 1, 10, 20], width: 100, height: 100 });
+  const line = createNode('line', { parentId: board.id, order: 'z', name: 'Line', transform: [0, 1, -1, 0, 5, 5], width: 50, height: 0 });
+  ed.transact('Add', () => [{ t: 'add', node: star }, { t: 'add', node: line }]);
+  const { text, report } = exportPbc(ed.doc, ed.pageId);
+  const kids = JSON.parse(text).project.comps['1'].root.children;
+  const s = kids.find((c: { name: string }) => c.name === 'Star');
+  assert.deepEqual(s.transform.position.Const, { x: 10, y: 20, z: 0 });
+  assert.equal(s.shape.Vector.path.anchors.length, 10);
+  assert.deepEqual(s.shape.Vector.path.anchors[0].point.Const, { x: 50, y: 0 });
+  const l = kids.find((c: { name: string }) => c.name === 'Line');
+  assert.equal(l.shape.Vector.path.closed, false);
+  assert.deepEqual(l.shape.Vector.path.anchors[1].point.Const, { x: 50, y: 0 });
+  assert.equal(l.fill, null);
+  assert.ok(l.stroke);
+  assert.ok(!report.some(r => r.includes('Star') || r.includes('Line')));
+});
