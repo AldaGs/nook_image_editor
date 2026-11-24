@@ -41,6 +41,7 @@ export interface EditorState {
   selection: string[];
   tool: ToolId;
   multiSelect: boolean;
+  safeZones: boolean;
   canUndo: boolean;
   canRedo: boolean;
 }
@@ -53,6 +54,8 @@ export class Editor {
   tool: ToolId = 'select';
   /** Touch has no Shift key: in this mode taps add to the selection and one-finger drags draw a marquee. */
   multiSelect = false;
+  /** Shade the parts of story-shaped boards that social apps cover with their UI. */
+  safeZones = false;
   /** World-space marquee while one is being dragged (drawn by the renderer). */
   marquee: Rect | null = null;
   /** The text layer being edited on the canvas, if any. */
@@ -96,6 +99,7 @@ export class Editor {
       selection: [...this.selection],
       tool: this.tool,
       multiSelect: this.multiSelect,
+      safeZones: this.safeZones,
       canUndo: this.history.canUndo,
       canRedo: this.history.canRedo,
     };
@@ -125,6 +129,7 @@ export class Editor {
 
   setTool(tool: ToolId): void { this.tool = tool; this.emit(); }
   setMultiSelect(on: boolean): void { this.multiSelect = on; this.emit(); }
+  setSafeZones(on: boolean): void { this.safeZones = on; this.emit(); }
 
   // ── Selection ────────────────────────────────────────────────
 

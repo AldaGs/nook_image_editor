@@ -48,3 +48,13 @@ export const FRAME_PRESETS = [
   { id: 'hd', name: 'Styleframe 1080p', width: 1920, height: 1080 },
 ] as const;
 export type FramePreset = (typeof FRAME_PRESETS)[number];
+
+/**
+ * Where Stories, Reels and TikTok cover a 9:16 board with their own UI
+ * (profile row, captions and reply bar, side buttons), as fractions of the
+ * board. Approximate: each app moves these a little between versions.
+ */
+export const STORY_SAFE_ZONE = { top: 250 / 1920, bottom: 420 / 1920, right: 120 / 1080 } as const;
+
+/** Is this board story-shaped (9:16)? */
+export const isStoryShaped = (w: number, h: number) => h > 0 && Math.abs(w / h - 9 / 16) < 0.01;
