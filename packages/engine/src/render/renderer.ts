@@ -65,7 +65,7 @@ export class Renderer {
     if (!this.surface) throw new Error('WebGL2 is not available, so Nook cannot draw.');
   }
 
-  render(camera: Camera, editor: Editor): void {
+  render(camera: Camera, editor: Editor, overlay = true): void {
     const surface = this.surface;
     if (!surface) return;
     const c = surface.getCanvas();
@@ -94,11 +94,24 @@ export class Renderer {
     }
     c.restore();
 
-    c.save();
-    c.scale(this.dpr, this.dpr);
-    this.drawOverlay(c, camera, editor);
-    c.restore();
+    if (overlay) {
+      c.save();
+      c.scale(this.dpr, this.dpr);
+      this.drawOverlay(c, camera, editor);
+      c.restore();
+    }
     surface.flush();
+  }
+
+  /** The colour drawn at a screen point (CSS px), without the selection overlay. */
+  sample(camera: Camera, editor: Editor, at: Point): RGBA | null {
+    if (!this.surface) return null;
+    this.render(camera, editor, false);
+    const x = Math.round(at.x * this.dpr), y = Math.round(at.y * this.dpr);
+    const info = { width: 1, height: 1, colorType: this.ck.ColorType.RGBA_8888, alphaType: this.ck.AlphaType.Unpremul, colorSpace: this.ck.ColorSpace.SRGB };
+    const px = this.surface.getCanvas().readPixels(x, y, info);
+    if (!px || px.length < 4) return null;
+    return { r: px[0]! / 255, g: px[1]! / 255, b: px[2]! / 255, a: 1 };
   }
 
   /** Forget the pictures of boards whose contents changed (or all of them for a new document). */

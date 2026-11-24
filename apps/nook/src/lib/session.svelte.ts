@@ -1,7 +1,7 @@
 // The editing session: one Editor, its reactive state for Svelte, and autosave
 // to the device (OPFS). The document survives reloads and works offline.
 
-import { Editor, fromFile, starterDoc, toFile, type EditorState } from '@nook/engine';
+import { Editor, fromFile, starterDoc, toFile, type Engine, type EditorState, type RGBA } from '@nook/engine';
 import { readFile, writeFile } from '@nook/storage';
 
 const DOC_PATH = 'docs/current/doc.json';
@@ -57,3 +57,23 @@ export async function loadSession(): Promise<void> {
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden' && !ui.saved) { clearTimeout(timer); save(); }
 });
+
+// ── Eyedropper ─────────────────────────────────────────────────
+
+/** The canvas engine once it has loaded (set by Canvas). */
+export const canvasRef: { engine: Engine | null } = { engine: null };
+export const eyedropper = $state({ active: false });
+
+/** Wait for the next tap on the canvas and return the colour drawn there (null if cancelled). */
+export async function pickFromCanvas(): Promise<RGBA | null> {
+  const engine = canvasRef.engine;
+  if (!engine) return null;
+  eyedropper.active = true;
+  try {
+    return await engine.pickColor();
+  } finally {
+    eyedropper.active = false;
+  }
+}
+
+export const cancelPick = () => canvasRef.engine?.cancelPickColor();

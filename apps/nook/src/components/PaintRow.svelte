@@ -3,11 +3,6 @@
 <script lang="ts" module>
   import type { GradientPaint, Paint, RGBA } from '@nook/engine';
 
-  const hex2 = (v: number) => Math.round(Math.min(1, Math.max(0, v)) * 255).toString(16).padStart(2, '0');
-  export const toHex = (c: RGBA) => `#${hex2(c.r)}${hex2(c.g)}${hex2(c.b)}`;
-  export const fromHex = (h: string, a = 1): RGBA => ({
-    r: parseInt(h.slice(1, 3), 16) / 255, g: parseInt(h.slice(3, 5), 16) / 255, b: parseInt(h.slice(5, 7), 16) / 255, a,
-  });
   /** CSS for a swatch showing the paint. */
   export function swatch(p: Paint): string {
     const css = (c: RGBA) => `rgb(${c.r * 255} ${c.g * 255} ${c.b * 255} / ${c.a})`;
@@ -19,7 +14,13 @@
 
 <script lang="ts">
   import { linear, solid } from '@nook/engine';
+  import ColorPicker from './ColorPicker.svelte';
   import IconButton from './IconButton.svelte';
+  import Swatch from './Swatch.svelte';
+
+  /** Which colour's picker is open: the solid paint, or a gradient stop by index. */
+  let open = $state<'paint' | number | null>(null);
+  const toggle = (which: 'paint' | number) => (open = open === which ? null : which);
 
   let { paint, onchange, onremove, oneditgradient }: {
     paint: Paint;
@@ -63,9 +64,7 @@
 <div class="paint">
   <div class="row">
     {#if paint.kind === 'solid'}
-      <input class="swatch" type="color" aria-label="Colour" value={toHex(paint.color)}
-        oninput={e => onchange({ ...paint, color: fromHex(e.currentTarget.value, paint.color.a) } as Paint, false)}
-        onchange={e => onchange({ ...paint, color: fromHex(e.currentTarget.value, paint.color.a) } as Paint, true)} />
+      <Swatch color={paint.color} open={open === 'paint'} onclick={() => toggle('paint')} />
     {:else}
       <button type="button" class="swatch" aria-label="Edit gradient on canvas" style:background={swatch(paint)} onclick={oneditgradient}></button>
     {/if}
@@ -81,14 +80,16 @@
     <IconButton icon={paint.visible ? 'eye' : 'eyeOff'} label={paint.visible ? 'Hide' : 'Show'} onclick={() => onchange({ ...paint, visible: !paint.visible }, true)} />
     <IconButton icon="minus" label="Remove" onclick={onremove} />
   </div>
+  {#if paint.kind === 'solid' && open === 'paint'}
+    {@const p = paint}
+    <ColorPicker color={p.color} onchange={(color, done) => onchange({ ...p, color }, done)} />
+  {/if}
 
   {#if paint.kind !== 'solid'}
     {@const g = paint}
     {#each g.stops as stop, i (i)}
       <div class="row stop">
-        <input class="swatch small" type="color" aria-label="Stop colour" value={toHex(stop.color)}
-          oninput={e => setStop(g, i, { color: fromHex(e.currentTarget.value, stop.color.a) }, false)}
-          onchange={e => setStop(g, i, { color: fromHex(e.currentTarget.value, stop.color.a) }, true)} />
+        <Swatch color={stop.color} label="Stop colour" size={28} open={open === i} onclick={() => toggle(i)} />
         <input type="range" min="0" max="1" step="0.01" aria-label="Stop position" value={stop.offset} style:--fill="{stop.offset * 100}%"
           oninput={e => setStop(g, i, { offset: +e.currentTarget.value }, false)}
           onchange={e => setStop(g, i, { offset: +e.currentTarget.value }, true)} />
@@ -97,8 +98,11 @@
             onchange={e => setStop(g, i, { color: { ...stop.color, a: Math.min(1, Math.max(0, +e.currentTarget.value / 100)) } }, true)} />%
         </label>
         <IconButton icon="minus" label="Remove stop" disabled={g.stops.length <= 2}
-          onclick={() => onchange({ ...g, stops: g.stops.filter((_, j) => j !== i) }, true)} />
+          onclick={() => { open = null; onchange({ ...g, stops: g.stops.filter((_, j) => j !== i) }, true); }} />
       </div>
+      {#if open === i}
+        <div class="stop"><ColorPicker color={stop.color} onchange={(color, done) => setStop(g, i, { color }, done)} /></div>
+      {/if}
     {/each}
     <div class="row">
       <button type="button" class="text" onclick={() => addStop(g)}>Add stop</button>
@@ -120,9 +124,6 @@
     border-radius: 8px;
     background: none;
   }
-  .swatch.small { width: 28px; height: 28px; }
-  input[type='color']::-webkit-color-swatch-wrapper { padding: 2px; }
-  input[type='color']::-webkit-color-swatch { border: none; border-radius: 6px; }
   select { flex: 1; min-width: 0; }
   input[type='range'] { flex: 1; min-width: 0; }
   .pct { display: flex; align-items: center; gap: 2px; color: var(--text-muted); font-size: 13px; }

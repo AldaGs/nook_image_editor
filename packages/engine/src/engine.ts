@@ -8,7 +8,7 @@ import { loadCanvasKit } from './render/canvaskit.ts';
 import { FrameLoop } from './render/frameloop.ts';
 import { Renderer, type RendererTheme } from './render/renderer.ts';
 import { estimateText, type Editor, type ToolId } from './editor/editor.ts';
-import type { TextProps } from './doc/types.ts';
+import type { RGBA, TextProps } from './doc/types.ts';
 import { worldBounds } from './editor/bounds.ts';
 import { SelectTool } from './editor/tools/select.ts';
 import { ShapeTool } from './editor/tools/shape.ts';
@@ -42,6 +42,12 @@ export interface Engine {
    * Returns the caret's screen position for placing the hidden input.
    */
   revealCaret(visible: Rect): Point | null;
+  /**
+   * Eyedropper: the next press on the canvas reports the colour under it
+   * instead of going to the tool. Resolves null if cancelled.
+   */
+  pickColor(): Promise<RGBA | null>;
+  cancelPickColor(): void;
   /** A text block's widest line and height, wrapped at `width` (null: no wrapping). */
   measureLines(t: TextProps, width: number | null): { width: number; height: number };
   invalidate(): void;
@@ -77,7 +83,20 @@ export async function createEngine(canvas: HTMLCanvasElement, opts: EngineOption
     text: new TextTool(ctx),
   };
 
-  const detachInput = attachInput(canvas, camera, () => tools[editor.tool], () => loop.invalidate());
+  // The eyedropper takes one press, then hands input back to the tools.
+  let picking: ((c: RGBA | null) => void) | null = null;
+  const pickTool: Tool = {
+    down(p) {
+      const done = picking;
+      picking = null;
+      done?.(renderer.sample(camera, editor, p.screen));
+      loop.invalidate();
+    },
+    move() {},
+    up() {},
+    cancel() {},
+  };
+  const detachInput = attachInput(canvas, camera, () => picking ? pickTool : tools[editor.tool], () => loop.invalidate());
   const unsubscribe = editor.subscribe(() => loop.invalidate());
 
   // Keep the surface sized to the element (rotation, keyboard, split view).
@@ -107,6 +126,15 @@ export async function createEngine(canvas: HTMLCanvasElement, opts: EngineOption
     },
     setTheme(theme) { renderer.theme = theme; loop.invalidate(); },
     measureLines: (t, width) => renderer.measureLines(t, width),
+    pickColor() {
+      picking?.(null);
+      return new Promise(resolve => { picking = resolve; });
+    },
+    cancelPickColor() {
+      const done = picking;
+      picking = null;
+      done?.(null);
+    },
     revealCaret(visible) {
       const te = editor.textEdit;
       const n = te && editor.doc.get(te.nodeId);

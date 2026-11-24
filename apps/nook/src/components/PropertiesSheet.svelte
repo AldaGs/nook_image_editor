@@ -3,7 +3,9 @@
 <script lang="ts">
   import { BLEND_MODES, newEffect, solid, type BlendMode, type Effect, type Node, type Paint, type Stroke, type TextProps } from '@nook/engine';
   import IconButton from './IconButton.svelte';
-  import PaintRow, { fromHex, toHex } from './PaintRow.svelte';
+  import ColorPicker from './ColorPicker.svelte';
+  import PaintRow from './PaintRow.svelte';
+  import Swatch from './Swatch.svelte';
   import Sheet from './Sheet.svelte';
   import { editor, ui } from '../lib/session.svelte';
   import { FONTS, weightsOf } from '../lib/fonts';
@@ -44,6 +46,9 @@
     100: 'Thin', 200: 'Extra light', 300: 'Light', 400: 'Regular', 500: 'Medium', 600: 'Semibold', 700: 'Bold', 800: 'Extra bold', 900: 'Black',
   };
   const nearestWeight = (family: string, w: number) => weightsOf(family).reduce((a, b) => (Math.abs(b - w) < Math.abs(a - w) ? b : a));
+
+  /** The shadow whose colour picker is open, by effect index. */
+  let shadowPicker = $state<number | null>(null);
 
   // New paints go on top, like Figma.
   const grey = () => solid({ r: 0.85, g: 0.85, b: 0.87, a: 1 });
@@ -151,15 +156,11 @@
             {#each EFFECTS as [k, name] (k)}<option value={k}>{name}</option>{/each}
           </select>
           <IconButton icon={e.visible ? 'eye' : 'eyeOff'} label={e.visible ? 'Hide' : 'Show'} onclick={() => edit('effects', replace(n.effects, i, { ...e, visible: !e.visible }))} />
-          <IconButton icon="minus" label="Remove effect" onclick={() => edit('effects', remove(n.effects, i))} />
+          <IconButton icon="minus" label="Remove effect" onclick={() => { shadowPicker = null; edit('effects', remove(n.effects, i)); }} />
         </div>
         <div class="row indent wrap">
           {#if e.kind === 'dropShadow' || e.kind === 'innerShadow'}
-            <input class="swatch" type="color" aria-label="Shadow colour" value={toHex(e.color)}
-              oninput={ev => edit('effects', replace(n.effects, i, { ...e, color: fromHex(ev.currentTarget.value, e.color.a) }), false)}
-              onchange={ev => edit('effects', replace(n.effects, i, { ...e, color: fromHex(ev.currentTarget.value, e.color.a) }))} />
-            <label class="field">A<input type="number" inputmode="numeric" min="0" max="100" value={Math.round(e.color.a * 100)}
-              onchange={ev => edit('effects', replace(n.effects, i, { ...e, color: { ...e.color, a: Math.min(1, num(ev.currentTarget.value, 0) / 100) } }))} /></label>
+            <Swatch color={e.color} label="Shadow colour" size={32} open={shadowPicker === i} onclick={() => (shadowPicker = shadowPicker === i ? null : i)} />
             <label class="field">X<input type="number" inputmode="decimal" value={e.x}
               onchange={ev => edit('effects', replace(n.effects, i, { ...e, x: num(ev.currentTarget.value) }))} /></label>
             <label class="field">Y<input type="number" inputmode="decimal" value={e.y}
@@ -168,6 +169,9 @@
               onchange={ev => edit('effects', replace(n.effects, i, { ...e, blur: num(ev.currentTarget.value, 0) }))} /></label>
             <label class="field">Spread<input type="number" inputmode="decimal" value={e.spread}
               onchange={ev => edit('effects', replace(n.effects, i, { ...e, spread: num(ev.currentTarget.value) }))} /></label>
+            {#if shadowPicker === i}
+              <div class="full"><ColorPicker color={e.color} onchange={(color, done) => edit('effects', replace(n.effects, i, { ...e, color }), done)} /></div>
+            {/if}
           {:else if e.kind === 'layerBlur' || e.kind === 'backgroundBlur'}
             <label class="field">Blur<input type="number" inputmode="decimal" min="0" value={e.radius}
               onchange={ev => edit('effects', replace(n.effects, i, { ...e, radius: num(ev.currentTarget.value, 0) }))} /></label>
@@ -193,6 +197,6 @@
   .value { width: 3em; text-align: right; font-size: 13px; color: var(--text-muted); }
   .field { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-muted); }
   .field input { width: 3.6em; }
-  .swatch { width: 32px; height: 32px; padding: 0; border: 1px solid var(--border); border-radius: 8px; background: none; }
+  .full { flex-basis: 100%; }
   .empty { padding: var(--space); color: var(--text-muted); }
 </style>

@@ -10,3 +10,4 @@ export { solid, linear, newEffect, paintColor, BLEND_MODES } from './doc/types.t
 export type { RendererTheme } from './render/renderer.ts';
 export * as affine from './geom/affine.ts';
 export type { Affine, Point, Rect } from './geom/affine.ts';
+export { toHex, parseHex, rgbToHsv, hsvToRgb, documentColors, type HSVA } from './doc/color.ts';

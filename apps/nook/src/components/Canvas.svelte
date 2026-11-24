@@ -5,7 +5,7 @@
   import { createEngine, type Engine, type FrameLabel } from '@nook/engine';
   import wasmUrl from 'canvaskit-wasm/bin/canvaskit.wasm?url';
   import { canvasTheme } from '../lib/theme.svelte';
-  import { editor } from '../lib/session.svelte';
+  import { canvasRef, editor } from '../lib/session.svelte';
   import { loadFont } from '../lib/fonts';
   import ActionBar from './ActionBar.svelte';
   import FrameLabels from './FrameLabels.svelte';
@@ -37,12 +37,12 @@
     })
       .then(e => {
         if (disposed) return e.destroy();
-        live = engine = e;
+        live = engine = canvasRef.engine = e;
         e.zoomToFit();
       })
       .catch(err => { error = err instanceof Error ? err.message : String(err); });
 
-    return () => { disposed = true; live?.destroy(); engine = null; };
+    return () => { disposed = true; live?.destroy(); engine = canvasRef.engine = null; };
   });
 
   // Recolour the canvas when the system theme changes.
