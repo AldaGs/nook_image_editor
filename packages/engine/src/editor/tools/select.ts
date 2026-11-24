@@ -209,11 +209,7 @@ export class SelectTool implements Tool {
 
   /** Boxes a move can snap to: boards and what's on the page or directly in a board, minus what's moving. */
   private snapTargets(moving: Node[]): Rect[] {
-    const { doc, pageId } = this.ctx.editor;
-    const skip = new Set(moving.flatMap(n => [n.id, ...doc.descendants(n.id).map(d => d.id)]));
-    const top = doc.children(pageId);
-    const near = [...top, ...top.filter(n => n.type === 'frame').flatMap(f => doc.children(f.id))];
-    return near.filter(n => n.visible && !skip.has(n.id)).flatMap(n => worldBounds(doc, [n]) ?? []);
+    return this.ctx.editor.snapRects(moving.map(n => n.id));
   }
 
   // ── Tap ──────────────────────────────────────────────────────

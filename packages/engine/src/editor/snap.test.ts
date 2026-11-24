@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { snapBox, snapEdges } from './snap.ts';
+import { boxPoints, snapBox, snapEdges, snapPoint } from './snap.ts';
 
 test('snaps the nearest edge or centre within tolerance, with a guide', () => {
   const other = { x: 100, y: 0, width: 50, height: 50 };
@@ -32,4 +32,20 @@ test('snapEdges pulls only the dragged edge onto a nearby edge', () => {
   const r = snapEdges({ x: 0, y: 0, width: 97, height: 50 }, { x: 'hi' }, [{ x: 100, y: 200, width: 40, height: 40 }], 6);
   assert.deepEqual(r.box, { x: 0, y: 0, width: 100, height: 50 });
   assert.equal(r.guides.length, 1);
+});
+
+test('snapPoint lines x and y up on their own, with a guide to each target', () => {
+  const r = snapPoint({ x: 103, y: 47 }, [{ x: 100, y: 0 }, { x: 300, y: 50 }], 5);
+  assert.deepEqual(r.point, { x: 100, y: 50 });
+  assert.deepEqual(r.guides, [
+    { a: { x: 100, y: 0 }, b: { x: 100, y: 50 } },   // vertical, up to (100, 0)
+    { a: { x: 100, y: 50 }, b: { x: 300, y: 50 } },  // horizontal, across to (300, 50)
+  ]);
+  assert.deepEqual(snapPoint({ x: 150, y: 150 }, [{ x: 100, y: 0 }], 5), { point: { x: 150, y: 150 }, guides: [] });
+});
+
+test('boxPoints gives corners, edge middles and the centre', () => {
+  const pts = boxPoints([{ x: 0, y: 0, width: 10, height: 20 }]);
+  assert.equal(pts.length, 9);
+  assert.ok(pts.some(p => p.x === 5 && p.y === 10));
 });

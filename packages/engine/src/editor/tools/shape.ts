@@ -43,7 +43,9 @@ export class ShapeTool implements Tool {
     if (!s) return;
     if (!this.dragging && Math.hypot(p.screen.x - s.screen.x, p.screen.y - s.screen.y) < dragThreshold(p)) return;
     this.dragging = true;
-    let w = p.world.x - s.world.x, h = p.world.y - s.world.y;
+    const { editor, camera } = this.ctx;
+    const end = p.shift ? p.world : editor.snapWorldPoint(p.world, { zoom: camera.zoom, touch: p.touch, alt: p.alt, skip: [this.id] });
+    let w = end.x - s.world.x, h = end.y - s.world.y;
     if (this.type === 'line') {
       if (p.shift) { // snap to 45°
         const a = Math.round(Math.atan2(h, w) / (Math.PI / 4)) * (Math.PI / 4), len = Math.hypot(w, h);
@@ -67,6 +69,7 @@ export class ShapeTool implements Tool {
       else this.place({ x: p.world.x - size / 2, y: p.world.y - size / 2 }, size, size);
     }
     editor.history.commit();
+    editor.guides = [];
     this.start = null;
     if (editor.doc.get(this.id)) editor.select([this.id]);
     editor.setTool('select');
@@ -74,6 +77,7 @@ export class ShapeTool implements Tool {
 
   cancel(): void {
     this.ctx.editor.history.cancel();
+    this.ctx.editor.guides = [];
     this.start = null;
   }
 

@@ -13,6 +13,7 @@ import type { Op } from '../doc/ops.ts';
 import { isContainer, isGradient, type BooleanOp, type GradientPaint, type ImagePaint, type Node, type NodeProp, type TextProps } from '../doc/types.ts';
 import { applyVector, invert, multiply, rotation, translation, type Affine, type Point, type Rect } from '../geom/affine.ts';
 import { localFor, worldBounds } from './bounds.ts';
+import { boxPoints, snapPoint } from './snap.ts';
 import { frameAt } from './hit.ts';
 import type { Guide } from './snap.ts';
 
@@ -79,6 +80,32 @@ export class Editor {
   measureText: MeasureText = estimateText;
   /** The gradient whose end points are being dragged on the canvas, if any. */
   gradientEdit: GradientTarget | null = null;
+  /**
+   * Boxes things can snap to: boards and what's on the page or directly in a
+   * board, minus `skip` (and everything inside it).
+   */
+  snapRects(skip: Iterable<string>): Rect[] {
+    const { doc, pageId } = this;
+    const gone = new Set<string>();
+    for (const id of skip) { gone.add(id); for (const d of doc.descendants(id)) gone.add(d.id); }
+    const top = doc.children(pageId);
+    const near = [...top, ...top.filter(n => n.type === 'frame').flatMap(f => doc.children(f.id))];
+    return near.filter(n => n.visible && !gone.has(n.id)).flatMap(n => worldBounds(doc, [n]) ?? []);
+  }
+
+  /**
+   * Snap a world point for the pen, point editing and shape drags: to `extra`
+   * points (a path's own) and to boxes' corners, edge middles and centres,
+   * within 6 screen px (8 for a finger). Sets the guides; Alt turns it off.
+   */
+  snapWorldPoint(p: Point, opts: { zoom: number; touch: boolean; alt: boolean; skip?: Iterable<string>; extra?: Point[] }): Point {
+    if (opts.alt) { this.guides = []; return p; }
+    const tol = (opts.touch ? 8 : 6) / opts.zoom;
+    const r = snapPoint(p, [...(opts.extra ?? []), ...boxPoints(this.snapRects(opts.skip ?? []))], tol);
+    this.guides = r.guides;
+    return r.point;
+  }
+
   /** World-space snap guides while a move is snapping (drawn by the renderer). */
   guides: Guide[] = [];
 

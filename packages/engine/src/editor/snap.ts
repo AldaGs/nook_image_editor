@@ -121,3 +121,38 @@ export function snapEdges(box: Rect, moving: { x?: 'lo' | 'hi'; y?: 'lo' | 'hi' 
   }
   return { box: out, guides };
 }
+
+/** Where a point can snap: corners, edge middles and centres of boxes. */
+export function boxPoints(rects: Rect[]): Point[] {
+  return rects.flatMap(r => {
+    const xs = [r.x, r.x + r.width / 2, r.x + r.width], ys = [r.y, r.y + r.height / 2, r.y + r.height];
+    return xs.flatMap(x => ys.map(y => ({ x, y })));
+  });
+}
+
+/**
+ * Snap a point's x and y, each on its own, to the nearest target's x or y
+ * within `tol` (pen points line up with other points and with box edges and
+ * centres). Guides run from the snapped point to the targets it lines up with.
+ */
+export function snapPoint(p: Point, targets: Point[], tol: number): { point: Point; guides: Guide[] } {
+  const near = (ax: Axis) => {
+    let best: number | null = null;
+    for (const t of targets) {
+      const d = t[ax] - p[ax];
+      if (Math.abs(d) < tol && (best === null || Math.abs(d) < Math.abs(best - p[ax]))) best = t[ax];
+    }
+    return best;
+  };
+  const x = near('x'), y = near('y');
+  const point = { x: x ?? p.x, y: y ?? p.y };
+  const guides: Guide[] = [];
+  for (const ax of ['x', 'y'] as const) {
+    const v = ax === 'x' ? x : y;
+    if (v === null) continue;
+    const o = other(ax);
+    const hits = [point, ...targets.filter(t => Math.abs(t[ax] - v) < 1e-6)];
+    guides.push(line(o, Math.min(...hits.map(h => h[o])), Math.max(...hits.map(h => h[o])), v));
+  }
+  return { point, guides };
+}

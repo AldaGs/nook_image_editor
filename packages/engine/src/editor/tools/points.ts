@@ -86,7 +86,13 @@ export class PointsMode {
     const anchors = d.start.anchors.map(a => ({ ...a }));
     const a = anchors[d.index]!;
     if (d.kind === 'anchor') {
-      a.p = { x: a.p.x + q.x - q0.x, y: a.p.y + q.y - q0.y };
+      // Snap the point's world position; the other points of the path count as targets.
+      const m0 = editor.doc.worldTransform(n.id);
+      const start = d.start.anchors[d.index]!.p;
+      const raw = apply(m0, { x: start.x + q.x - q0.x, y: start.y + q.y - q0.y });
+      const others = d.start.anchors.filter((_, j) => j !== d.index).map(o => apply(m0, o.p));
+      const w = editor.snapWorldPoint(raw, { zoom: this.ctx.camera.zoom, touch: p.touch, alt: p.alt, skip: [n.id], extra: others });
+      a.p = apply(inv, w);
     } else {
       const t = { x: q.x - a.p.x, y: q.y - a.p.y };
       const other = d.side === 'in' ? 'out' : 'in';
@@ -100,6 +106,7 @@ export class PointsMode {
 
   up(): void {
     const { editor } = this.ctx;
+    editor.guides = [];
     const d = this.drag, n = this.node();
     this.drag = null;
     this.downAt = null;
@@ -112,6 +119,7 @@ export class PointsMode {
   }
 
   cancel(): void {
+    this.ctx.editor.guides = [];
     if (this.drag && this.drag.kind !== 'segment') this.ctx.editor.history.cancel();
     this.drag = null;
     this.downAt = null;

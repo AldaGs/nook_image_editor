@@ -19,8 +19,18 @@ export class PenTool implements Tool {
 
   constructor(ctx: ToolContext) { this.ctx = ctx; }
 
-  down(p: PointerInfo): void {
+  /** The pointer with its world point snapped to the path's points and nearby boxes. */
+  private snapped(p: PointerInfo): PointerInfo {
     const { editor, camera } = this.ctx;
+    const n = editor.penNode();
+    const m = n && editor.doc.worldTransform(n.id);
+    const own = n?.path && m ? n.path.anchors.map(a => apply(m, a.p)) : [];
+    return { ...p, world: editor.snapWorldPoint(p.world, { zoom: camera.zoom, touch: p.touch, alt: p.alt, skip: n ? [n.id] : [], extra: own }) };
+  }
+
+  down(raw: PointerInfo): void {
+    const { editor, camera } = this.ctx;
+    const p = this.snapped(raw);
     this.start = p;
     this.dragging = false;
     const n = editor.penNode();
@@ -42,15 +52,18 @@ export class PenTool implements Tool {
     if (p.touch) editor.pen.loupe = p.screen;
     if (!this.dragging && dist(p.screen, s.screen) < dragThreshold(p)) { this.ctx.invalidate(); return; }
     this.dragging = true;
+    editor.guides = []; // the point is placed; the drag only pulls its handle
     editor.history.rewind();
     this.place(s.world, p.world);
   }
 
-  up(p: PointerInfo): void {
+  up(raw: PointerInfo): void {
     const { editor } = this.ctx;
     if (!this.start) return;
+    const p = this.dragging ? raw : this.snapped(raw);
     this.start = null;
     editor.pen.loupe = null;
+    editor.guides = [];
     if (this.closing) { editor.finishPen(true); editor.setTool('select'); return; }
     if (!this.dragging) { editor.history.rewind(); this.place(p.world, null); }
     editor.history.commit();
@@ -59,6 +72,7 @@ export class PenTool implements Tool {
 
   cancel(): void {
     const { editor } = this.ctx;
+    editor.guides = [];
     if (this.start && !this.closing) editor.history.cancel();
     this.start = null;
     editor.pen.loupe = null;
