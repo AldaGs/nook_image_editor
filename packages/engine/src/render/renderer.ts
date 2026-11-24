@@ -26,6 +26,13 @@ export class Renderer {
   private line: SkPaint;
   private dpr = 1;
   private pictures = new Map<string, SkPicture>();
+  /**
+   * Device pixels per world unit that zoom-dependent effects (the sticker
+   * outline's anti-aliased edge) are drawn for, and the boards recorded with it.
+   */
+  private fxScale = 1;
+  private fxUsed = false;
+  private scaledPictures = new Map<string, number>();
   private fonts: TypefaceFontProvider;
   private fontLoads = new Map<string, Promise<void>>();
   private clear: SkPaint; // transparent background paint for text runs
@@ -90,12 +97,19 @@ export class Renderer {
       const b = worldBounds(doc, [n]);
       if (!b || !intersects(b, view)) continue;
       let pic = this.pictures.get(n.id);
+      // Boards with zoom-dependent effects re-record when the zoom moves past a power of two.
+      const bucket = 2 ** Math.round(Math.log2(camera.zoom * this.dpr));
+      const was = this.scaledPictures.get(n.id);
+      if (pic && was !== undefined && was !== bucket) { pic.delete(); pic = undefined; }
       if (!pic) {
         const rec = new this.ck.PictureRecorder();
+        this.fxScale = bucket;
+        this.fxUsed = false;
         this.drawNode(rec.beginRecording(this.ck.XYWHRect(b.x, b.y, b.width, b.height)), doc, n);
         pic = rec.finishRecordingAsPicture();
         rec.delete();
         this.pictures.set(n.id, pic);
+        if (this.fxUsed) this.scaledPictures.set(n.id, bucket); else this.scaledPictures.delete(n.id);
       }
       c.drawPicture(pic);
     }
@@ -302,6 +316,7 @@ export class Renderer {
     // Undo the node's place in the world so its box starts at (0, 0).
     const parent = node.parentId ? doc.worldTransform(node.parentId) : ([1, 0, 0, 1, 0, 0] as Affine);
     c.concat(this.matrix(multiply(invert(doc.worldTransform(node.id)), parent)));
+    this.fxScale = scale;
     this.drawNode(c, doc, node);
     const info = { width, height, colorType: this.ck.ColorType.RGBA_8888, alphaType: this.ck.AlphaType.Unpremul, colorSpace: this.ck.ColorSpace.SRGB };
     const pixels = c.readPixels(0, 0, info) as Uint8Array | null;
@@ -527,14 +542,16 @@ export class Renderer {
    * gives square corners, this gives the round ones a die-cut sticker has.
    */
   private stickerOutline(e: Outline): ImageFilter {
-    const w = e.width;
-    const grown = this.ck.ImageFilter.MakeBlur(w * 0.35, w * 0.35, this.ck.TileMode.Decal, this.ck.ImageFilter.MakeDilate(w * 0.8, w * 0.8, null));
+    const w = e.width, sigma = w * 0.35;
+    this.fxUsed = true;
+    const grown = this.ck.ImageFilter.MakeBlur(sigma, sigma, this.ck.TileMode.Decal, this.ck.ImageFilter.MakeDilate(w * 0.8, w * 0.8, null));
     const { r, g, b, a } = e.color;
+    const [k, bias] = outlineEdge(sigma, this.fxScale);
     const hard = this.ck.ColorFilter.MakeMatrix([
       0, 0, 0, 0, r,
       0, 0, 0, 0, g,
       0, 0, 0, 0, b,
-      0, 0, 0, 8, -3.5, // alpha past ~0.44 becomes opaque: a crisp edge
+      0, 0, 0, k, bias,
     ]);
     const snapped = this.ck.ImageFilter.MakeColorFilter(hard, grown);
     hard.delete();
@@ -742,4 +759,15 @@ export function bubble(boxes: Rect[], pad: number, tail: { at: number; size: num
   const start = box.x + radius + at * (box.width - radius * 2 - w);
   const tip = at < 0.5 ? start : at > 0.5 ? start + w : start + w / 2;
   return { box, radius, tail: [{ x: start, y: bottom - 1 }, { x: start + w, y: bottom - 1 }, { x: tip, y: bottom + tail.size }] };
+}
+
+/**
+ * Alpha gain and bias that turn a blurred edge into a crisp, anti-aliased one:
+ * the ramp round alpha 0.4 is stretched to about one device pixel. A Gaussian
+ * edge's slope there is about 1 / (2.5 sigma) per unit, so the gain is 2.5 sigma
+ * times device pixels per unit (pure, for tests).
+ */
+export function outlineEdge(sigma: number, devicePerUnit: number): [number, number] {
+  const k = Math.min(256, Math.max(1, 2.5 * sigma * devicePerUnit));
+  return [k, 0.5 - 0.4 * k];
 }
