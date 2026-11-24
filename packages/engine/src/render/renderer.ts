@@ -514,7 +514,7 @@ export class Renderer {
   private drawOverlay(c: Canvas, camera: Camera, editor: Editor): void {
     // Safe zones first, under the selection: shaded strips on story-shaped boards.
     if (editor.safeZones) {
-      this.fill.setColor(this.color(this.theme.accent, 0.18));
+      this.fill.setColor(this.color(this.theme.accent, editor.safeZoneOpacity));
       for (const b of editor.doc.children(editor.pageId)) {
         if (b.type !== 'frame' || !b.visible || !isStoryShaped(b.width, b.height)) continue;
         const z = STORY_SAFE_ZONE, w = b.width, h = b.height;

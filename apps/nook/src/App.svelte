@@ -2,7 +2,7 @@
      over it), bottom toolbar. Sheets open on top. -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { Engine, FramePreset } from '@nook/engine';
+  import type { Engine } from '@nook/engine';
   import { exportPbc } from '@nook/scene-export';
   import { requestPersistence } from '@nook/storage';
   import Canvas from './components/Canvas.svelte';
@@ -53,7 +53,7 @@
     engine?.zoomToFit(editor.selection.length ? editor.selection : undefined);
   }
 
-  function addBoard(p: FramePreset) {
+  function addBoard(p: { name: string; width: number; height: number }) {
     presetsOpen = false;
     const frame = editor.addFrame(p);
     engine?.zoomToFit([frame.id]);

@@ -1,7 +1,7 @@
 <!-- Design sheet for the selection: layer opacity and blend, fills, strokes, effects.
      Edits apply to every selected layer, starting from the first one's values. -->
 <script lang="ts">
-  import { BLEND_MODES, newEffect, solid, type BlendMode, type Effect, type Node, type Paint, type Stroke, type TextProps } from '@nook/engine';
+  import { BLEND_MODES, newEffect, solid, type BlendMode, type Effect, type MotionHints, type Node, type Paint, type Stroke, type TextProps } from '@nook/engine';
   import IconButton from './IconButton.svelte';
   import ColorPicker from './ColorPicker.svelte';
   import PaintRow from './PaintRow.svelte';
@@ -9,6 +9,7 @@
   import Sheet from './Sheet.svelte';
   import { editor, ui } from '../lib/session.svelte';
   import { FONTS, weightsOf } from '../lib/fonts';
+  import { motionRole } from '@nook/scene-export';
 
   let { onClose, onEditGradient }: {
     onClose: () => void;
@@ -29,7 +30,7 @@
   const label = (m: string) => m.replace(/[A-Z]/g, c => ` ${c.toLowerCase()}`).replace(/^./, c => c.toUpperCase());
 
   /** Live while dragging (done = false), one undo step when done. */
-  function edit(prop: 'opacity' | 'blendMode' | 'fills' | 'strokes' | 'effects', value: unknown, done = true) {
+  function edit(prop: 'opacity' | 'blendMode' | 'fills' | 'strokes' | 'effects' | 'width' | 'height' | 'motion', value: unknown, done = true) {
     editor.preview(ids, prop, value);
     if (done) editor.commitEdit();
   }
@@ -71,6 +72,38 @@
         </select>
       </div>
     </section>
+
+    {#if n.type === 'frame'}
+      <section>
+        <h3>Board</h3>
+        <div class="row">
+          <label class="field">W<input type="number" inputmode="numeric" min="1" value={Math.round(n.width)}
+            onchange={e => edit('width', Math.round(num(e.currentTarget.value, 1)))} /></label>
+          <label class="field">H<input type="number" inputmode="numeric" min="1" value={Math.round(n.height)}
+            onchange={e => edit('height', Math.round(num(e.currentTarget.value, 1)))} /></label>
+        </div>
+      </section>
+    {/if}
+
+    {#if n.type === 'frame' || n.type === 'group'}
+      {@const m = n.motion ?? {}}
+      {@const topLevel = n.parentId === editor.pageId}
+      <section>
+        <h3>Motion</h3>
+        <div class="row">
+          <select aria-label="Motion role" value={m.role ?? ''}
+            onchange={e => edit('motion', { ...m, role: (e.currentTarget.value || undefined) as MotionHints['role'] })}>
+            <option value="">Auto ({topLevel ? 'comp' : motionRole({ ...n, motion: undefined }) === 'precomp' ? 'precomp' : 'layer group'})</option>
+            {#if topLevel}<option value="comp">Comp</option>{/if}
+            <option value="precomp">Precomp</option>
+            {#if !topLevel}<option value="layer">Layer group</option>{/if}
+          </select>
+        </div>
+        <p class="hint">{topLevel ? 'Each board is a comp in PBC.' : 'Precomps keep blend modes and effects, and clip boards. Layer groups stay editable in place.'}</p>
+        <textarea aria-label="Motion notes" rows="2" placeholder="Notes for the animator" value={m.notes ?? ''}
+          onchange={e => edit('motion', { ...m, notes: e.currentTarget.value.trim() || undefined })}></textarea>
+      </section>
+    {/if}
 
     {#if n.type === 'text' && n.text}
       {@const t = n.text}
@@ -189,14 +222,17 @@
   section:first-of-type { border-top: none; }
   header { display: flex; align-items: center; justify-content: space-between; }
   h3 { margin: 8px 0 4px; font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
-  .row { display: flex; align-items: center; gap: 6px; min-height: var(--touch-target); }
+  .row { min-width: 0; display: flex; align-items: center; gap: 6px; min-height: var(--touch-target); }
   .row.wrap { flex-wrap: wrap; }
   .indent { padding-left: 12px; }
   .row > input[type='range'] { flex: 1; }
   .row > select { flex: 1; min-width: 0; }
   .value { width: 3em; text-align: right; font-size: 13px; color: var(--text-muted); }
   .field { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-muted); }
-  .field input { width: 3.6em; }
+  .field input { width: 3.6em; min-width: 0; }
+  section { min-width: 0; }
   .full { flex-basis: 100%; }
+  textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; color: inherit; padding: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; resize: vertical; user-select: text; -webkit-user-select: text; }
+  .hint { margin: 0 0 6px; font-size: 12px; color: var(--text-muted); }
   .empty { padding: var(--space); color: var(--text-muted); }
 </style>

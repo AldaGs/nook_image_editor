@@ -84,3 +84,59 @@ test('text is centred on its laid-out block, as PBC draws it', () => {
   assert.deepEqual(layer.transform.position.Const, { x: 200, y: 250, z: 0 });
   assert.ok(report.some(r => r.startsWith('Fonts used: Inter')));
 });
+
+test('a frame inside a frame becomes a precomp clipped by a mask', () => {
+  const ed = new Editor(starterDoc());
+  const outer = ed.doc.children(ed.pageId)[0]!;
+  const inner = createNode('frame', { parentId: outer.id, order: 'z', name: 'Window', transform: [1, 0, 0, 1, 100, 50], width: 300, height: 200 });
+  inner.fills = [solid({ r: 0, g: 1, b: 0, a: 1 })];
+  const dot = createNode('ellipse', { parentId: inner.id, order: 'a', name: 'Dot', transform: [1, 0, 0, 1, 10, 20], width: 40, height: 40 });
+  inner.motion = { notes: 'slides in from the left' };
+  ed.transact('Add', () => [{ t: 'add', node: inner }, { t: 'add', node: dot }]);
+  const { text, report } = exportPbc(ed.doc, ed.pageId);
+  const { project } = JSON.parse(text);
+  // Three boards first (comp 1 is still the first board), then the precomp.
+  assert.deepEqual(Object.keys(project.comps), ['1', '2', '3', '4']);
+  const layer = project.comps['1'].root.children.at(-1);
+  assert.equal(layer.name, 'Window');
+  assert.equal(layer.precomp, 4);
+  assert.deepEqual(layer.transform.position.Const, { x: 100, y: 50, z: 0 });
+  assert.deepEqual(layer.mask.shape.Vector.path.anchors.map((a: { point: { Const: object } }) => a.point.Const), [{ x: 0, y: 0 }, { x: 300, y: 0 }, { x: 300, y: 200 }, { x: 0, y: 200 }]);
+  assert.deepEqual(layer.tags, ['note: slides in from the left']);
+  const comp = project.comps['4'];
+  assert.equal(comp.width, 300);
+  assert.equal(comp.bg.a, 0);
+  assert.deepEqual(comp.root.children.map((c: { name: string }) => c.name), ['Window background', 'Dot']);
+  assert.deepEqual(comp.root.children[1].transform.position.Const, { x: 30, y: 40, z: 0 });
+  assert.ok(!report.some(r => r.includes('Window')));
+});
+
+test('a group with a blend mode becomes a precomp; a plain one stays a group', () => {
+  const ed = new Editor(starterDoc());
+  const frame = ed.doc.children(ed.pageId)[0]!;
+  ed.select([ed.doc.children(frame.id)[0]!.id]); // Card, 600×600 at (240, 375)
+  ed.group();
+  const g = ed.selection[0]!;
+  let layer = JSON.parse(exportPbc(ed.doc, ed.pageId).text).project.comps['1'].root.children[0];
+  assert.equal(layer.precomp, undefined);
+
+  ed.setProp([g], 'blendMode', 'multiply');
+  const { text, report } = exportPbc(ed.doc, ed.pageId);
+  const { project } = JSON.parse(text);
+  layer = project.comps['1'].root.children[0];
+  assert.equal(layer.blend, 'Multiply');
+  const comp = project.comps[String(layer.precomp)];
+  assert.equal(comp.width, 600);
+  // The comp starts at the group's bounds; the card sits at its centre inside it.
+  assert.deepEqual(layer.transform.position.Const, { x: 240, y: 375, z: 0 });
+  const card = comp.root.children[0];
+  const shift = comp.root.transform.position.Const;
+  assert.deepEqual({ x: card.transform.position.Const.x + shift.x, y: card.transform.position.Const.y + shift.y }, { x: 300, y: 300 });
+  assert.ok(!report.some(r => r.includes('Group')));
+
+  // An explicit Layer group role keeps it a group, with the note in the report.
+  ed.setProp([g], 'motion', { role: 'layer' });
+  const r2 = exportPbc(ed.doc, ed.pageId);
+  assert.equal(JSON.parse(r2.text).project.comps['1'].root.children[0].precomp, undefined);
+  assert.ok(r2.report.some(r => r.includes('Precomp')));
+});
