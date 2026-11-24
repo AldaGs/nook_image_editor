@@ -153,3 +153,16 @@ test('a uniform multi-selection resize keeps a rotated shape rotated and scales 
   const after = worldCorners(ed.doc, ed.doc.get(card.id)!);
   assert.ok(sameCorners(after, before.map(p => ({ x: p.x * 3, y: p.y * 3 }))));
 });
+
+test('the doc reports touched ids, including the old parent of a moved node', () => {
+  const ed = new Editor(starterDoc());
+  const [f1, f2] = ed.doc.children(ed.pageId);
+  const card = ed.doc.children(f1!.id)[0]!;
+  ed.doc.takeTouched();
+  ed.transact('t', () => ed.reparentOps(card, f2!.id, 'zz'));
+  assert.deepEqual([...ed.doc.takeTouched()].sort(), [card.id, f1!.id].sort());
+  assert.equal(ed.doc.takeTouched().size, 0);
+  ed.select([card.id]);
+  ed.deleteSelection();
+  assert.deepEqual([...ed.doc.takeTouched()].sort(), [card.id, f2!.id].sort());
+});

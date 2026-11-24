@@ -9,6 +9,8 @@ export class Doc {
   readonly nodes = new Map<string, Node>();
   /** Bumped on every change; caches and the renderer key off it. */
   version = 0;
+  /** Ids changed since the last `takeTouched()` (incl. old and new parents of moved/removed nodes). */
+  private touched = new Set<string>();
   private childCache = new Map<string | null, Node[]>();
 
   get(id: string): Node | undefined {
@@ -54,6 +56,7 @@ export class Doc {
       case 'set': {
         const node = this.must(op.id);
         const old = node[op.prop];
+        if (op.prop === 'parentId' && old) this.touched.add(old as string);
         (node as unknown as Record<string, unknown>)[op.prop] = structuredClone(op.value);
         inverse = { t: 'set', id: op.id, prop: op.prop, value: structuredClone(old) };
         break;
@@ -67,13 +70,22 @@ export class Doc {
         const node = this.must(op.id);
         if (this.children(op.id).length) throw new Error(`remove children of ${op.id} first`);
         this.nodes.delete(op.id);
+        if (node.parentId) this.touched.add(node.parentId);
         inverse = { t: 'add', node };
         break;
       }
     }
+    this.touched.add(op.t === 'add' ? op.node.id : op.id);
     this.version++;
     this.childCache.clear();
     return inverse;
+  }
+
+  /** Ids changed since the last call (the renderer uses this to redraw only what changed). */
+  takeTouched(): Set<string> {
+    const t = this.touched;
+    this.touched = new Set();
+    return t;
   }
 
   private must(id: string): Node {

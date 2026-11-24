@@ -1,43 +1,96 @@
-// Snapping: pull a moving box so its left/centre/right and top/middle/bottom
-// line up with another box's, and report the guide lines to draw.
+// Snapping: pull a moving box so its edges or centre line up with another
+// box's, or so it sits at an equal gap from its neighbours, and report the
+// guide lines to draw.
 
 import type { Point, Rect } from '../geom/affine.ts';
 
 /** A guide line in world space. */
 export interface Guide { a: Point; b: Point }
 
-const stops = (r: Rect, axis: 'x' | 'y') =>
-  axis === 'x' ? [r.x, r.x + r.width / 2, r.x + r.width] : [r.y, r.y + r.height / 2, r.y + r.height];
+type Axis = 'x' | 'y';
+const lo = (r: Rect, ax: Axis) => (ax === 'x' ? r.x : r.y);
+const size = (r: Rect, ax: Axis) => (ax === 'x' ? r.width : r.height);
+const hi = (r: Rect, ax: Axis) => lo(r, ax) + size(r, ax);
+const other = (ax: Axis): Axis => (ax === 'x' ? 'y' : 'x');
+const stops = (r: Rect, ax: Axis) => [lo(r, ax), lo(r, ax) + size(r, ax) / 2, hi(r, ax)];
+/** A line from `a` to `b` along `ax`, at `at` on the other axis. */
+const line = (ax: Axis, a: number, b: number, at: number): Guide =>
+  ax === 'x' ? { a: { x: a, y: at }, b: { x: b, y: at } } : { a: { x: at, y: a }, b: { x: at, y: b } };
 
-/** Best offset along one axis within `tol`, and the boxes it lines up with. */
-function snapAxis(box: Rect, others: Rect[], axis: 'x' | 'y', tol: number) {
-  let best = tol, delta = 0, line: number | null = null;
-  for (const o of others) {
-    for (const s of stops(box, axis)) {
-      for (const t of stops(o, axis)) {
-        if (Math.abs(t - s) < best) { best = Math.abs(t - s); delta = t - s; line = t; }
-      }
+interface Candidate { delta: number; guides: (moved: Rect) => Guide[] }
+
+/** Edges and centres lining up with another box. */
+function alignCandidates(box: Rect, others: Rect[], ax: Axis): Candidate[] {
+  const out: Candidate[] = [];
+  for (const s of stops(box, ax)) {
+    for (const t of new Set(others.flatMap(o => stops(o, ax)))) {
+      out.push({
+        delta: t - s,
+        guides: moved => {
+          // Everything touching the line, plus the moved box, sets its extent.
+          const hit = [moved, ...others.filter(o => stops(o, ax).some(v => Math.abs(v - t) < 1e-6))];
+          const o = other(ax);
+          return [line(o, Math.min(...hit.map(r => lo(r, o))), Math.max(...hit.map(r => hi(r, o))), t)];
+        },
+      });
     }
   }
-  return { delta, line };
+  return out;
+}
+
+/**
+ * Equal gaps with neighbours in the same row (or column): centred between two
+ * of them, or one gap past a pair that already has that gap.
+ * ponytail: O(n²) over the boxes in the row; fine for a board's worth of layers.
+ */
+function spacingCandidates(box: Rect, others: Rect[], ax: Axis): Candidate[] {
+  const o = other(ax);
+  const row = others.filter(r => hi(r, o) > lo(box, o) && lo(r, o) < hi(box, o)).sort((a, b) => lo(a, ax) - lo(b, ax));
+  const mid = (r: Rect) => lo(r, o) + size(r, o) / 2;
+  const out: Candidate[] = [];
+  const gapGuides = (pairs: [Rect, Rect][]) => (moved: Rect) =>
+    pairs.flatMap(([a, b]) => {
+      const [l, r] = lo(a, ax) < lo(b, ax) ? [a, b] : [b, a];
+      return [line(ax, hi(l, ax), lo(r, ax), (Math.max(lo(l, o), lo(r, o)) + Math.min(hi(l, o), hi(r, o))) / 2 || mid(moved))];
+    });
+  for (let i = 0; i < row.length; i++) {
+    for (let j = i + 1; j < row.length; j++) {
+      const L = row[i]!, R = row[j]!;
+      const gap = lo(R, ax) - hi(L, ax);
+      if (gap < 0) continue;
+      // Centred in the gap between L and R.
+      if (gap > size(box, ax)) {
+        const at = (hi(L, ax) + lo(R, ax) - size(box, ax)) / 2;
+        out.push({ delta: at - lo(box, ax), guides: m => gapGuides([[L, m], [m, R]])(m) });
+      }
+      // Only next-door pairs set a gap to repeat.
+      if (j !== i + 1) continue;
+      out.push({ delta: hi(R, ax) + gap - lo(box, ax), guides: m => gapGuides([[L, R], [R, m]])(m) });
+      out.push({ delta: lo(L, ax) - gap - size(box, ax) - lo(box, ax), guides: m => gapGuides([[L, R], [m, L]])(m) });
+    }
+  }
+  return out;
+}
+
+function snapAxis(box: Rect, others: Rect[], ax: Axis, tol: number): Candidate | null {
+  let best: Candidate | null = null;
+  for (const c of [...alignCandidates(box, others, ax), ...spacingCandidates(box, others, ax)]) {
+    if (Math.abs(c.delta) < tol && (!best || Math.abs(c.delta) < Math.abs(best.delta))) best = c;
+  }
+  return best;
 }
 
 /**
  * Snap `box` (already moved by the raw drag) to `others`. Returns the extra
- * offset to apply and guides spanning the moved box and what it lines up with.
+ * offset to apply and the guides to draw.
  */
 export function snapBox(box: Rect, others: Rect[], tol: number): { dx: number; dy: number; guides: Guide[] } {
   const sx = snapAxis(box, others, 'x', tol);
   const sy = snapAxis(box, others, 'y', tol);
-  const moved = { ...box, x: box.x + sx.delta, y: box.y + sy.delta };
-  const guides: Guide[] = [];
-  const span = (axis: 'x' | 'y', at: number) => {
-    // Everything touching the line, plus the moved box, sets its extent.
-    const hit = [moved, ...others.filter(o => stops(o, axis).some(t => Math.abs(t - at) < 1e-6))];
-    if (axis === 'x') guides.push({ a: { x: at, y: Math.min(...hit.map(r => r.y)) }, b: { x: at, y: Math.max(...hit.map(r => r.y + r.height)) } });
-    else guides.push({ a: { x: Math.min(...hit.map(r => r.x)), y: at }, b: { x: Math.max(...hit.map(r => r.x + r.width)), y: at } });
+  const moved = { ...box, x: box.x + (sx?.delta ?? 0), y: box.y + (sy?.delta ?? 0) };
+  return {
+    dx: sx?.delta ?? 0,
+    dy: sy?.delta ?? 0,
+    guides: [...(sx?.guides(moved) ?? []), ...(sy?.guides(moved) ?? [])],
   };
-  if (sx.line !== null) span('x', sx.line);
-  if (sy.line !== null) span('y', sy.line);
-  return { dx: sx.delta, dy: sy.delta, guides };
 }

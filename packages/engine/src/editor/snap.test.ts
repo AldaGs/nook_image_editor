@@ -14,3 +14,16 @@ test('snaps the nearest edge or centre within tolerance, with a guide', () => {
   // Out of range: nothing.
   assert.deepEqual(snapBox({ x: 300, y: 300, width: 10, height: 10 }, [other], 5), { dx: 0, dy: 0, guides: [] });
 });
+
+test('equal spacing: centres between two boxes, or repeats a neighbour gap', () => {
+  const a = { x: 0, y: 0, width: 100, height: 100 };
+  const b = { x: 300, y: 0, width: 100, height: 100 };
+  // Between a and b (gap 100–300), a 50-wide box centres at x=175.
+  assert.equal(snapBox({ x: 178, y: 7, width: 50, height: 50 }, [a, b], 5).dx, -3);
+  // Right of b with the same 200 gap → x=600.
+  const r = snapBox({ x: 603, y: 13, width: 100, height: 50 }, [a, b], 5);
+  assert.equal(r.dx, -3);
+  assert.ok(r.guides.some(g => g.a.x === 400 && g.b.x === 600));
+  // Out of the row: no spacing snap.
+  assert.equal(snapBox({ x: 603, y: 500, width: 100, height: 50 }, [a, b], 5).dx, 0);
+});

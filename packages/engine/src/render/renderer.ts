@@ -1,8 +1,11 @@
 // Renderer: draws the page's node tree through the camera, then the selection
 // overlay (outlines, handles, marquee) in screen space so it stays crisp.
 // The backing store follows devicePixelRatio so it stays sharp on phones.
+// Each top-level node (board) is recorded once as an SkPicture and replayed
+// until something inside it changes, so dragging one shape doesn't re-walk
+// every other board.
 
-import type { Canvas, CanvasKit, Paint as SkPaint, Surface } from 'canvaskit-wasm';
+import type { Canvas, CanvasKit, Paint as SkPaint, SkPicture, Surface } from 'canvaskit-wasm';
 import type { Camera } from '../camera/camera.ts';
 import type { Doc } from '../doc/document.ts';
 import type { BlendMode, Node, RGBA } from '../doc/types.ts';
@@ -22,6 +25,8 @@ export class Renderer {
   private line: SkPaint;
   private layer: SkPaint; // reused for opacity layers
   private dpr = 1;
+  private pictures = new Map<string, SkPicture>();
+  private picturesFor: Doc | null = null;
 
   private ck: CanvasKit;
   private canvas: HTMLCanvasElement;
@@ -63,11 +68,21 @@ export class Renderer {
     c.scale(camera.zoom * this.dpr, camera.zoom * this.dpr);
     c.translate(-camera.x, -camera.y);
     const view = this.viewRect(camera);
-    for (const n of editor.doc.children(editor.pageId)) {
+    const doc = editor.doc;
+    this.dropStalePictures(doc, editor.pageId);
+    for (const n of doc.children(editor.pageId)) {
       // Skip top-level nodes entirely off screen.
-      const b = worldBounds(editor.doc, [n]);
-      if (b && !intersects(b, view)) continue;
-      this.drawNode(c, editor.doc, n);
+      const b = worldBounds(doc, [n]);
+      if (!b || !intersects(b, view)) continue;
+      let pic = this.pictures.get(n.id);
+      if (!pic) {
+        const rec = new this.ck.PictureRecorder();
+        this.drawNode(rec.beginRecording(this.ck.XYWHRect(b.x, b.y, b.width, b.height)), doc, n);
+        pic = rec.finishRecordingAsPicture();
+        rec.delete();
+        this.pictures.set(n.id, pic);
+      }
+      c.drawPicture(pic);
     }
     c.restore();
 
@@ -78,7 +93,33 @@ export class Renderer {
     surface.flush();
   }
 
+  /** Forget the pictures of boards whose contents changed (or all of them for a new document). */
+  private dropStalePictures(doc: Doc, pageId: string): void {
+    const touched = doc.takeTouched();
+    if (this.picturesFor !== doc) {
+      this.picturesFor = doc;
+      this.clearPictures();
+      return;
+    }
+    for (const id of touched) {
+      // A node that was top-level until now (moved into a board, deleted) drops its own picture too.
+      this.pictures.get(id)?.delete();
+      this.pictures.delete(id);
+      // Walk up to the page's child; a removed node's parent was recorded too.
+      let top = id;
+      for (let n = doc.get(id); n && n.parentId && n.parentId !== pageId; n = doc.get(n.parentId)) top = n.parentId;
+      this.pictures.get(top)?.delete();
+      this.pictures.delete(top);
+    }
+  }
+
+  private clearPictures(): void {
+    this.pictures.forEach(p => p.delete());
+    this.pictures.clear();
+  }
+
   destroy(): void {
+    this.clearPictures();
     this.fill.delete();
     this.line.delete();
     this.layer.delete();
