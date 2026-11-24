@@ -55,7 +55,7 @@
         </span>
       </label>
     {/each}
-    <p class="muted">Both are BiRefNet ({MODELS.birefnet.license}).</p>
+    <p class="muted">IS-Net: {MODELS.isnet.license}. BiRefNet: {MODELS.birefnet.license}.</p>
   </section>
 
   <section>

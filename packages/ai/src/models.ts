@@ -8,13 +8,22 @@ export const AI_CACHE = 'nook-ai';
 
 /**
  * Same-origin model files, fetched into public/models by `pnpm fetch-models`.
- * Both are BiRefNet (MIT); the user picks one in Settings.
+ * The user picks one in Settings. IS-Net runs anywhere; BiRefNet needs a GPU
+ * with enough room and falls back to IS-Net where it can't run.
  */
 export const MODELS = {
+  isnet: {
+    file: 'models/isnet-general-use.onnx',
+    name: 'IS-Net',
+    about: 'Runs on any device, phones included',
+    mb: 179,
+    license: 'Apache-2.0 — Xuebin Qin et al.',
+    sha256: '60920e99c45464f2ba57bee2ad08c919a52bbf852739e96947fbb4358c0d964a',
+  },
   birefnetLite: {
     file: 'models/birefnet_lite_fp16.onnx',
     name: 'BiRefNet lite',
-    about: 'Good cut-outs, sized for phones',
+    about: 'Sharper edges; needs a strong GPU (uses IS-Net where it can\u2019t run)',
     mb: 115,
     license: 'MIT — Zheng Peng et al.',
     sha256: 'd39b897ceb16ae654c1731f3dba0cf9b368d9cae74b5a57459b455cc8bfec402',
@@ -22,7 +31,7 @@ export const MODELS = {
   birefnet: {
     file: 'models/birefnet_fp16.onnx',
     name: 'BiRefNet',
-    about: 'Cleanest edges (hair, fur); best on a computer',
+    about: 'Cleanest edges (hair, fur); computers with a strong GPU (uses IS-Net where it can\u2019t run)',
     mb: 490,
     license: 'MIT — Zheng Peng et al.',
     sha256: '3654c741eb80bd926ada8fed1713b506ccf8d30eb1f6487e87eb9f234f33df09',

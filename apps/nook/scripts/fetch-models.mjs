@@ -1,13 +1,21 @@
 // Download AI model files into public/models so Nook serves them itself (AI runs
 // on the device; nothing is fetched from a third party at runtime).
-// Run: pnpm fetch-models            (both models)
-//      pnpm fetch-models lite       (just the small one)
+// Run: pnpm fetch-models            (all three)
+//      pnpm fetch-models isnet      (just the one that runs everywhere)
 // Models are not committed (public/models is gitignored). A missing model never
 // fails a build: Settings shows it as "not on this server". --strict makes it an error.
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 
 const MODELS = [
+  {
+    // Runs on any device, the CPU included.
+    id: 'isnet',
+    file: 'isnet-general-use.onnx',
+    url: 'https://github.com/danielgatis/rembg/releases/download/v0.0.0/isnet-general-use.onnx',
+    sha256: '60920e99c45464f2ba57bee2ad08c919a52bbf852739e96947fbb4358c0d964a',
+    license: 'https://raw.githubusercontent.com/xuebinqin/DIS/main/LICENSE.md',
+  },
   {
     id: 'lite',
     file: 'birefnet_lite_fp16.onnx',

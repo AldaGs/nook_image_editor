@@ -63,7 +63,7 @@ The MVP is done when you can design a 3-frame styleframe board and an Instagram 
 | Layers panel, groups, names, lock/hide | SVG import |  |
 | Undo/redo, autosave, .nook file save/open | Multiplayer |  |
 | Touch UI: phone layout, gestures, long-press menus | AE export via JSX script | Writing `.aep` files directly |
-| Background removal on images (BiRefNet, new; licence already checked in Heirloom) | Click-to-select (MobileSAM), object removal (MI-GAN), both already working in Heirloom |  |
+| Background removal on images (IS-Net on any device, BiRefNet on strong GPUs) | Click-to-select (MobileSAM), object removal (MI-GAN), both already working in Heirloom |  |
 | Export: PNG/JPG/WebP @1x–4x with Web Share, SVG, `.pbc` scene for PBC | PDF export, device-to-device sync (Heirloom's WebRTC) |  |
 
 ## Tech stack and architecture
@@ -180,8 +180,11 @@ There are seven stages, and each one ships a deployable build. Every "done when"
    - Checked in PBC: a test board (gradient sky, radial sun with drop shadow, blurred blob, rotated multiply bar, gradient Bebas Neue title, wrapped Montserrat subtitle) passes `motion check` and renders in `motion preview` matching Nook.
    - What PBC can't show yet (and the one PBC bug that matters, variable-font weights) is tracked in [PBC-GAPS.md](PBC-GAPS.md); the export report lists the same items per file.
    - Still to check on a real phone: the styleframe rebuild, and the keyboard and caret behaviour on iPhone Safari.
-4. **Stage 3: Images, social presets and export.** Add image import (photo picker, drag-drop and paste) as image fills, frame presets and safe zones, background removal, PNG/JPG/WebP export at 1x–4x per frame through the Web Share API, and `.nook` save/open.
+4. ✅ **Stage 3: Images, social presets and export.** Add image import (photo picker, drag-drop and paste) as image fills, frame presets and safe zones, background removal, PNG/JPG/WebP export at 1x–4x per frame through the Web Share API, and `.nook` save/open.
    - Done when you can make and post a real IG carousel from your phone. **First usable release.**
+   - Built: pictures from the photo picker, drop or paste as Fill/Fit image fills (re-encoded on import: EXIF rotation baked in, metadata including GPS stripped, capped at 4096 px, stored once by content hash); safe zones for 9:16 boards; an Export sheet for PNG/JPG/WebP at 1x–4x through the share sheet (numbered for carousels; sizes over iOS's canvas limit greyed out); `.nook` save/open; Settings with the AI switch and background removal.
+   - Background removal: IS-Net (Apache-2.0, 179 MB) runs on any device, CPU included (about 10 s on a desktop CPU). BiRefNet lite and full (MIT) are sharper but need WebGPU with at least 17 storage buffers per shader stage; where they can't run, IS-Net does the cut-out and says so. Run `pnpm fetch-models` to put the models in `apps/nook/public/models` (pinned by sha256, not committed).
+   - Still to check on a real phone: the photo picker, the share sheet into Instagram, IS-Net's speed and memory, and posting a carousel.
 5. **Stage 4: Motion export.** Add a `motion` panel on frames and groups (comp/precomp/layer role, notes) and finish `scene-export` to `.pbc`: layers, transforms, gradients, text and effects, with an export report listing anything PBC can't represent.
    - Done when a 3-frame board designed on your phone opens in PBC with named shape and text layers, precomps from groups, and correct positions and gradients, ready to animate. **Wedge proven.**
 6. **Stage 5: Social text boxes and stickers.** Add per-line text backgrounds (pill and highlight), bubbles, the sticker outline effect, the one-click photo-to-sticker action, the sticker library, and SkSL grain/halftone.

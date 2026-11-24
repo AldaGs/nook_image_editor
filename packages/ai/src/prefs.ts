@@ -1,13 +1,18 @@
-// Which background-removal model this device uses (Settings). Lite by default:
-// it suits phones; the full model is a 490 MB download best kept for computers.
-import type { ModelId } from './models.ts';
+// Which background-removal model this device uses (Settings). IS-Net by
+// default: it runs on any device; BiRefNet is for computers with a strong GPU.
+import { MODELS, type ModelId } from './models.ts';
 
 const KEY = 'nook:bg-model';
 
 export function backgroundModel(): ModelId {
-  try { return localStorage.getItem(KEY) === 'birefnet' ? 'birefnet' : 'birefnetLite'; } catch { return 'birefnetLite'; }
+  try {
+    const v = localStorage.getItem(KEY);
+    return v && v in MODELS ? (v as ModelId) : 'isnet';
+  } catch {
+    return 'isnet';
+  }
 }
 
 export function setBackgroundModel(id: ModelId): void {
-  try { localStorage.setItem(KEY, id); } catch { /* falls back to lite on reload */ }
+  try { localStorage.setItem(KEY, id); } catch { /* falls back to IS-Net on reload */ }
 }

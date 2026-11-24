@@ -50,8 +50,10 @@
     if (!bytes) return;
     removing = true;
     try {
-      const cut = await storeImage(await removeBackground(new Blob([bytes]), backgroundModel()));
-      onchange({ ...img, ...cut }, true);
+      const chosen = backgroundModel();
+      const { png, model } = await removeBackground(new Blob([bytes]), chosen);
+      onchange({ ...img, ...(await storeImage(png)) }, true);
+      if (model !== chosen) ui.error = `${MODELS[chosen].name} can't run on this device, so ${MODELS[model].name} removed the background.`;
     } catch (e) {
       ui.error = `Couldn't remove the background: ${e instanceof Error ? e.message : String(e)}`;
     } finally {
