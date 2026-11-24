@@ -3,18 +3,19 @@
 // On empty space a finger pans and a mouse draws a marquee; in multi-select
 // mode a finger draws a marquee too.
 
-import { apply, invert, multiply, rotation, translation, type Affine, type Point } from '../../geom/affine.ts';
+import { apply, invert, multiply, rotation, translation, type Affine, type Point, type Rect } from '../../geom/affine.ts';
 import type { Node } from '../../doc/types.ts';
-import { localBox } from '../bounds.ts';
-import { handleAt, handlesFor, type Handle } from '../handles.ts';
+import { localBox, worldBounds } from '../bounds.ts';
+import { snapBox } from '../snap.ts';
+import { handleAt, handlesFor, selectionBox, type Handle, type SelectionBox } from '../handles.ts';
 import { hitStack, marqueeHits } from '../hit.ts';
 import { dragThreshold, hitRadius, type PointerInfo, type Tool, type ToolContext } from './tool.ts';
 
 type Mode =
   | { kind: 'idle' }
   | { kind: 'press'; hit: Node | null; stack: Node[] }    // down, not yet a drag
-  | { kind: 'move'; nodes: Node[]; start: Map<string, Affine> }
-  | { kind: 'resize'; node: Node; handle: Handle; t0: Affine; w0: number; h0: number }
+  | { kind: 'move'; nodes: Node[]; start: Map<string, Affine>; box: Rect | null; others: Rect[] }
+  | { kind: 'resize'; sel: SelectionBox; handle: Handle }
   | { kind: 'rotate'; node: Node; t0: Affine; centre: Point; a0: number }
   | { kind: 'marquee'; base: string[] }
   | { kind: 'pan'; last: Point };
@@ -36,15 +37,16 @@ export class SelectTool implements Tool {
 
     // Handles win over everything under them.
     const handle = handleAt(handlesFor(editor, camera), p.screen, hitRadius(p));
-    const node = editor.selectedNodes()[0];
-    if (handle && node) {
+    const sel = selectionBox(editor);
+    if (handle && sel) {
       editor.history.begin(handle.id === 'rotate' ? 'Rotate' : 'Resize');
-      if (handle.id === 'rotate') {
+      const node = sel.node;
+      if (handle.id === 'rotate' && node) {
         const box = localBox(editor.doc, node);
         const centre = apply(editor.doc.worldTransform(node.id), { x: box.x + box.width / 2, y: box.y + box.height / 2 });
         this.mode = { kind: 'rotate', node, t0: node.transform, centre, a0: Math.atan2(p.world.y - centre.y, p.world.x - centre.x) };
       } else {
-        this.mode = { kind: 'resize', node, handle, t0: node.transform, w0: node.width, h0: node.height };
+        this.mode = { kind: 'resize', sel, handle };
       }
       return;
     }
@@ -67,10 +69,16 @@ export class SelectTool implements Tool {
     const dx = p.world.x - start.world.x, dy = p.world.y - start.world.y;
     const mode = this.mode;
     switch (mode.kind) {
-      case 'move':
+      case 'move': {
+        // Snap within 6 screen px; Alt turns it off.
+        const snap = mode.box && !p.alt
+          ? snapBox({ ...mode.box, x: mode.box.x + dx, y: mode.box.y + dy }, mode.others, 6 / camera.zoom)
+          : { dx: 0, dy: 0, guides: [] };
+        editor.guides = snap.guides;
         editor.history.rewind();
-        editor.transact('Move', () => editor.moveOps(mode.nodes, mode.start, dx, dy));
+        editor.transact('Move', () => editor.moveOps(mode.nodes, mode.start, dx + snap.dx, dy + snap.dy));
         break;
+      }
       case 'resize':
         editor.history.rewind();
         this.resize(mode, p);
@@ -98,6 +106,7 @@ export class SelectTool implements Tool {
     const { editor } = this.ctx;
     const m = this.mode;
     if (m.kind === 'press') this.tap(m.stack, p);
+    if (m.kind === 'move') { editor.guides = []; editor.dropAt(m.nodes, p.world); }
     if (m.kind === 'move' || m.kind === 'resize' || m.kind === 'rotate') editor.history.commit();
     if (m.kind === 'marquee') { editor.marquee = null; editor.emit(); }
     this.mode = { kind: 'idle' };
@@ -108,6 +117,7 @@ export class SelectTool implements Tool {
     const { editor } = this.ctx;
     if (this.mode.kind === 'move' || this.mode.kind === 'resize' || this.mode.kind === 'rotate') editor.history.cancel();
     if (this.mode.kind === 'marquee') { editor.marquee = null; editor.emit(); }
+    editor.guides = [];
     this.mode = { kind: 'idle' };
     this.downAt = null;
   }
@@ -125,10 +135,19 @@ export class SelectTool implements Tool {
       if (!selected) editor.select(additive ? [...editor.selection, hit.id] : [hit.id]);
       const nodes = editor.topmostSelected().filter(n => !n.locked);
       editor.history.begin('Move');
-      return { kind: 'move', nodes, start: new Map(nodes.map(n => [n.id, n.transform])) };
+      return { kind: 'move', nodes, start: new Map(nodes.map(n => [n.id, n.transform])), box: worldBounds(editor.doc, nodes), others: this.snapTargets(nodes) };
     }
     if (p.touch && !editor.multiSelect) return { kind: 'pan', last: p.screen };
     return { kind: 'marquee', base: additive ? [...editor.selection] : [] };
+  }
+
+  /** Boxes a move can snap to: boards and what's on the page or directly in a board, minus what's moving. */
+  private snapTargets(moving: Node[]): Rect[] {
+    const { doc, pageId } = this.ctx.editor;
+    const skip = new Set(moving.flatMap(n => [n.id, ...doc.descendants(n.id).map(d => d.id)]));
+    const top = doc.children(pageId);
+    const near = [...top, ...top.filter(n => n.type === 'frame').flatMap(f => doc.children(f.id))];
+    return near.filter(n => n.visible && !skip.has(n.id)).flatMap(n => worldBounds(doc, [n]) ?? []);
   }
 
   // ── Tap ──────────────────────────────────────────────────────
@@ -152,30 +171,25 @@ export class SelectTool implements Tool {
 
   // ── Resize and rotate ────────────────────────────────────────
 
-  /** Resize in the node's own space: the opposite edge or corner stays fixed. */
+  /** Resize in the selection box's own space: the opposite edge or corner stays fixed. */
   private resize(m: Extract<Mode, { kind: 'resize' }>, p: PointerInfo): void {
     const { editor } = this.ctx;
-    const parentWorld = m.node.parentId ? editor.doc.worldTransform(m.node.parentId) : translation(0, 0);
-    const q = apply(invert(multiply(parentWorld, m.t0)), p.world); // pointer in the node's start space
-    let x0 = 0, x1 = m.w0, y0 = 0, y1 = m.h0;
+    const { toWorld, box, nodes } = m.sel;
+    const q = apply(invert(toWorld), p.world); // pointer in box space
+    let x0 = box.x, x1 = box.x + box.width, y0 = box.y, y1 = box.y + box.height;
     if (m.handle.fx === 0) x0 = q.x;
     if (m.handle.fx === 1) x1 = q.x;
     if (m.handle.fy === 0) y0 = q.y;
     if (m.handle.fy === 1) y1 = q.y;
     if (p.shift && m.handle.fx !== 0.5 && m.handle.fy !== 0.5) {
       // Keep the aspect ratio from the corner handles.
-      const s = Math.max(Math.abs(x1 - x0) / m.w0, Math.abs(y1 - y0) / m.h0);
-      if (m.handle.fx === 0) x0 = x1 - m.w0 * s; else x1 = x0 + m.w0 * s;
-      if (m.handle.fy === 0) y0 = y1 - m.h0 * s; else y1 = y0 + m.h0 * s;
+      const s = Math.max(Math.abs(x1 - x0) / box.width, Math.abs(y1 - y0) / box.height);
+      if (m.handle.fx === 0) x0 = x1 - box.width * s; else x1 = x0 + box.width * s;
+      if (m.handle.fy === 0) y0 = y1 - box.height * s; else y1 = y0 + box.height * s;
     }
     // Dragging past the opposite edge flips the box instead of going negative.
-    const left = Math.min(x0, x1), top = Math.min(y0, y1);
-    const width = Math.max(1, Math.abs(x1 - x0)), height = Math.max(1, Math.abs(y1 - y0));
-    editor.transact('Resize', () => [
-      { t: 'set', id: m.node.id, prop: 'transform', value: multiply(m.t0, translation(left, top)) },
-      { t: 'set', id: m.node.id, prop: 'width', value: Math.round(width * 100) / 100 },
-      { t: 'set', id: m.node.id, prop: 'height', value: Math.round(height * 100) / 100 },
-    ]);
+    const to = { x: Math.min(x0, x1), y: Math.min(y0, y1), width: Math.max(1, Math.abs(x1 - x0)), height: Math.max(1, Math.abs(y1 - y0)) };
+    editor.transact('Resize', () => editor.scaleOps(nodes, toWorld, box, to));
   }
 
   /** Rotate about the box centre; Shift snaps to 15°. */

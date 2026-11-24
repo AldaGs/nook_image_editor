@@ -9,8 +9,10 @@ import { createNode, type FramePreset } from '../doc/factory.ts';
 import { starterDoc } from '../doc/serialize.ts';
 import type { Op } from '../doc/ops.ts';
 import type { Node, NodeProp } from '../doc/types.ts';
-import { applyVector, invert, translation, type Rect } from '../geom/affine.ts';
+import { applyVector, invert, multiply, rotation, translation, type Affine, type Point, type Rect } from '../geom/affine.ts';
 import { localFor, worldBounds } from './bounds.ts';
+import { frameAt } from './hit.ts';
+import type { Guide } from './snap.ts';
 
 export type ToolId = 'select' | 'rect' | 'ellipse' | 'frame';
 
@@ -34,6 +36,8 @@ export class Editor {
   multiSelect = false;
   /** World-space marquee while one is being dragged (drawn by the renderer). */
   marquee: Rect | null = null;
+  /** World-space snap guides while a move is snapping (drawn by the renderer). */
+  guides: Guide[] = [];
 
   private listeners = new Set<(s: EditorState) => void>();
 
@@ -152,6 +156,25 @@ export class Editor {
     this.setProp([id], 'order', order, 'Reorder');
   }
 
+  /**
+   * After a move: nodes sitting directly in a frame or on the page go into the
+   * deepest frame under `p` (or back onto the page), on top, keeping their
+   * place on screen. Children of groups and boards themselves stay put.
+   */
+  dropAt(nodes: Node[], p: Point): void {
+    const moving = new Set(nodes.flatMap(n => [n.id, ...this.doc.descendants(n.id).map(d => d.id)]));
+    const target = frameAt(this.doc, this.pageId, p, moving)?.id ?? this.pageId;
+    const movers = this.inDrawOrder(nodes.map(n => this.doc.get(n.id)!).filter(n => {
+      if (n.type === 'frame' || n.parentId === target) return false;
+      const parent = n.parentId ? this.doc.get(n.parentId) : null;
+      return parent?.type === 'frame' || parent?.type === 'page';
+    }));
+    if (!movers.length) return;
+    const sibs = this.doc.children(target);
+    const orders = keysAfter(sibs[sibs.length - 1]?.order ?? null, movers.length);
+    this.transact('Move', () => movers.flatMap((n, i) => this.reparentOps(n, target, orders[i]!)));
+  }
+
   /** Wrap the selection in a group, under the parent of the topmost selected node. */
   group(): void {
     const nodes = this.inDrawOrder(this.topmostSelected()).filter(n => n.type !== 'page');
@@ -234,6 +257,30 @@ export class Editor {
     const rank = new Map<string, number>();
     this.doc.descendants(this.pageId).forEach((n, i) => rank.set(n.id, i));
     return [...nodes].sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
+  }
+
+  /**
+   * Stretch nodes from box `from` to box `to`, both in the space `toWorld` maps
+   * to world. Groups pass through to their contents; every other node keeps a
+   * plain rotation + translation and changes its width and height instead, so
+   * nothing ends up with a scaled transform (PBC export needs real sizes).
+   */
+  scaleOps(nodes: Node[], toWorld: Affine, from: Rect, to: Rect): Op[] {
+    const sx = from.width ? to.width / from.width : 1, sy = from.height ? to.height / from.height : 1;
+    const inBox: Affine = [sx, 0, 0, sy, to.x - from.x * sx, to.y - from.y * sy];
+    const m = multiply(toWorld, multiply(inBox, invert(toWorld)));
+    const leaves = (n: Node): Node[] => n.type === 'group' ? this.doc.children(n.id).flatMap(leaves) : [n];
+    return nodes.flatMap(leaves).flatMap(n => {
+      const w = multiply(m, this.doc.worldTransform(n.id));
+      // ponytail: a rotated node under a non-uniform stretch would shear; it keeps its own angle and stretches along its own axes (as Figma does).
+      const world = multiply(translation(w[4], w[5]), rotation(Math.atan2(w[1], w[0])));
+      const r = (v: number) => Math.round(v * 100) / 100;
+      return [
+        { t: 'set', id: n.id, prop: 'transform', value: localFor(this.doc, world, n.parentId) },
+        { t: 'set', id: n.id, prop: 'width', value: r(n.width * Math.hypot(w[0], w[1])) },
+        { t: 'set', id: n.id, prop: 'height', value: r(n.height * Math.hypot(w[2], w[3])) },
+      ] as Op[];
+    });
   }
 
   /** Translate nodes by a world-space delta (each in its own parent space). */

@@ -171,6 +171,18 @@ export class Renderer {
     }
 
     // Marquee: translucent fill + outline.
+    // Snap guides: thin magenta lines.
+    if (editor.guides.length) {
+      this.line.setColor(this.color({ r: 1, g: 0.2, b: 0.55, a: 1 }));
+      this.line.setStrokeWidth(1);
+      for (const g of editor.guides) {
+        const a = camera.worldToScreen(g.a), b = camera.worldToScreen(g.b);
+        c.drawLine(a.x, a.y, b.x, b.y, this.line);
+      }
+      this.line.setColor(accent);
+      this.line.setStrokeWidth(1.5);
+    }
+
     if (editor.marquee) {
       const r = this.screenRect(camera, editor.marquee);
       this.fill.setColor(this.color(this.theme.accent, 0.12));

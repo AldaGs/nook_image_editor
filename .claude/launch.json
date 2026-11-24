@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "nook",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["-y", "pnpm@10.28.0", "--filter", "@nook/app", "exec", "vite", "--port", "5173", "--strictPort"],
+      "port": 5173
+    }
+  ]
+}

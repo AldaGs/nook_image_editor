@@ -90,3 +90,66 @@ test('doc.json round-trips', () => {
   const sort = (ns: Node[]) => [...ns].sort((a, b) => a.id.localeCompare(b.id));
   assert.deepEqual(sort([...back.nodes.values()]), sort([...ed.doc.nodes.values()]));
 });
+
+test('dropping a shape on another frame moves it there, off-frame puts it on the page, one undo step', () => {
+  const ed = new Editor(starterDoc());
+  const [f1, f2] = ed.doc.children(ed.pageId);
+  const card = ed.doc.children(f1!.id)[0]!;
+  const before = worldCorners(ed.doc, card);
+  const inF2 = { x: f2!.transform[4] + 10, y: f2!.transform[5] + 10 };
+
+  ed.history.begin('Move');
+  ed.dropAt([card], inF2);
+  ed.history.commit();
+  assert.equal(ed.doc.get(card.id)!.parentId, f2!.id);
+  assert.ok(sameCorners(worldCorners(ed.doc, ed.doc.get(card.id)!), before));
+  // On top of its new siblings.
+  assert.equal(ed.doc.children(f2!.id).at(-1)!.id, card.id);
+
+  ed.dropAt([ed.doc.get(card.id)!], { x: -1e5, y: -1e5 });
+  assert.equal(ed.doc.get(card.id)!.parentId, ed.pageId);
+
+  ed.undo();
+  ed.undo();
+  assert.equal(ed.doc.get(card.id)!.parentId, f1!.id);
+  assert.ok(sameCorners(worldCorners(ed.doc, ed.doc.get(card.id)!), before));
+});
+
+test('a board dragged over another board stays top-level', () => {
+  const ed = new Editor(starterDoc());
+  const [f1, f2] = ed.doc.children(ed.pageId);
+  ed.dropAt([f1!], { x: f2!.transform[4] + 10, y: f2!.transform[5] + 10 });
+  assert.equal(ed.doc.get(f1!.id)!.parentId, ed.pageId);
+});
+
+test('resizing a group stretches its children by size, not by scaled transforms', () => {
+  const ed = new Editor(starterDoc());
+  const frames = ed.doc.children(ed.pageId);
+  const [a, b] = frames.map(f => ed.doc.children(f.id)[0]!);
+  // Two cards in one group (b moved into a's frame first).
+  ed.transact('t', () => ed.reparentOps(b!, frames[0]!.id, 'zz'));
+  ed.select([a!.id, b!.id]);
+  ed.group();
+  const g = ed.doc.get(ed.selection[0]!)!;
+  const { width: w0, height: h0 } = ed.doc.get(a!.id)!;
+  const toWorld = ed.doc.worldTransform(g.id);
+  const box = { x: 0, y: 0, width: 100, height: 100 };
+  ed.transact('Resize', () => ed.scaleOps([g], toWorld, box, { x: 0, y: 0, width: 200, height: 50 }));
+  const a2 = ed.doc.get(a!.id)!;
+  assert.equal(a2.width, w0 * 2);
+  assert.equal(a2.height, h0 / 2);
+  assert.deepEqual(a2.transform.slice(0, 4), [1, 0, 0, 1]);
+  ed.undo();
+  assert.equal(ed.doc.get(a!.id)!.width, w0);
+});
+
+test('a uniform multi-selection resize keeps a rotated shape rotated and scales it about the box', () => {
+  const ed = new Editor(starterDoc());
+  const card = ed.doc.children(ed.doc.children(ed.pageId)[0]!.id)[0]!;
+  const t = multiply(card.transform, rotation(Math.PI / 6));
+  ed.setProp([card.id], 'transform', t);
+  const before = worldCorners(ed.doc, ed.doc.get(card.id)!);
+  ed.transact('Resize', () => ed.scaleOps([ed.doc.get(card.id)!], translation(0, 0), { x: 0, y: 0, width: 10, height: 10 }, { x: 0, y: 0, width: 30, height: 30 }));
+  const after = worldCorners(ed.doc, ed.doc.get(card.id)!);
+  assert.ok(sameCorners(after, before.map(p => ({ x: p.x * 3, y: p.y * 3 }))));
+});

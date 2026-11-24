@@ -46,12 +46,12 @@ export function hitStack(doc: Doc, pageId: string, p: Point, slop = 0): Node[] {
   return out;
 }
 
-/** Top-level frames under a point, deepest first (used to parent new shapes). */
-export function frameAt(doc: Doc, pageId: string, p: Point): Node | null {
+/** The deepest frame under a point (used to parent new and dropped shapes). `skip` excludes frames being dragged. */
+export function frameAt(doc: Doc, pageId: string, p: Point, skip?: Set<string>): Node | null {
   let found: Node | null = null;
   const visit = (parentId: string) => {
     for (const n of doc.children(parentId)) {
-      if (n.type === 'frame' && n.visible && inside(doc, n, p, 0)) { found = n; visit(n.id); }
+      if (n.type === 'frame' && n.visible && !skip?.has(n.id) && inside(doc, n, p, 0)) { found = n; visit(n.id); }
     }
   };
   visit(pageId);

@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "exports": { ".": "./src/index.ts" },
-  "scripts": { "check": "tsc -p .", "test": "node --test --experimental-strip-types 'src/**/*.test.ts'" },
+  "scripts": { "check": "tsc -p .", "test": "node --test --experimental-strip-types \"src/**/*.test.ts\"" },
   "dependencies": { "canvaskit-wasm": "0.42.0" },
   "devDependencies": { "typescript": "^5.9.3", "@types/node": "^22.19.0" }
 }

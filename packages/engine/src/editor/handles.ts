@@ -1,12 +1,13 @@
 // Selection handles, in screen space so they stay the same size at any zoom.
-// Single selection: 8 resize handles + a rotate handle above the top edge.
-// Groups get no resize handles (scaling children comes with constraints later);
-// frames get no rotate handle (a comp can't be rotated in PBC or AE).
+// One node or group: 8 resize handles + a rotate handle above the top edge,
+// on its own (possibly rotated) box. Several nodes: resize handles on the box
+// around them all. Frames get no rotate handle (a comp can't be rotated in PBC or AE).
 
 import type { Camera } from '../camera/camera.ts';
-import type { Point } from '../geom/affine.ts';
+import { corners, identity, type Affine, type Point, type Rect } from '../geom/affine.ts';
+import type { Node } from '../doc/types.ts';
 import type { Editor } from './editor.ts';
-import { worldCorners } from './bounds.ts';
+import { localBox, worldBounds } from './bounds.ts';
 
 export type HandleId = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'rotate';
 
@@ -26,17 +27,30 @@ const RESIZE: [HandleId, number, number][] = [
   ['se', 1, 1], ['s', 0.5, 1], ['sw', 0, 1], ['w', 0, 0.5],
 ];
 
-/** Screen corners of the single selected node, or null. */
+/** The box handles sit on: `box` in the space `toWorld` maps to world. `node` is set for a single selection. */
+export interface SelectionBox { toWorld: Affine; box: Rect; node: Node | null; nodes: Node[] }
+
+export function selectionBox(editor: Editor): SelectionBox | null {
+  const nodes = editor.topmostSelected().filter(n => !n.locked);
+  if (!nodes.length || nodes.length < editor.topmostSelected().length) return null;
+  if (nodes.length === 1) {
+    const node = nodes[0]!;
+    return { toWorld: editor.doc.worldTransform(node.id), box: localBox(editor.doc, node), node, nodes };
+  }
+  const box = worldBounds(editor.doc, nodes);
+  return box && { toWorld: identity(), box, node: null, nodes };
+}
+
+/** Screen corners of the selection box, or null. */
 export function selectionQuad(editor: Editor, camera: Camera): Point[] | null {
-  const [only, ...rest] = editor.selectedNodes();
-  if (!only || rest.length) return null;
-  return worldCorners(editor.doc, only).map(p => camera.worldToScreen(p));
+  const sel = selectionBox(editor);
+  return sel && corners(sel.toWorld, sel.box).map(p => camera.worldToScreen(p));
 }
 
 export function handlesFor(editor: Editor, camera: Camera): Handle[] {
-  const node = editor.selectedNodes()[0];
+  const sel = selectionBox(editor);
   const quad = selectionQuad(editor, camera);
-  if (!node || !quad || node.locked) return [];
+  if (!sel || !quad) return [];
   const [tl, tr, , bl] = quad as [Point, Point, Point, Point];
   // Bilinear point on the (possibly rotated) box.
   const at = (fx: number, fy: number): Point => ({
@@ -44,15 +58,13 @@ export function handlesFor(editor: Editor, camera: Camera): Handle[] {
     y: tl.y + (tr.y - tl.y) * fx + (bl.y - tl.y) * fy,
   });
   const out: Handle[] = [];
-  if (node.type !== 'group') {
-    // Skip edge handles on boxes too small on screen to tell them apart.
-    const small = Math.hypot(tr.x - tl.x, tr.y - tl.y) < 40 || Math.hypot(bl.x - tl.x, bl.y - tl.y) < 40;
-    for (const [id, fx, fy] of RESIZE) {
-      if (small && (fx === 0.5 || fy === 0.5)) continue;
-      out.push({ id, screen: at(fx, fy), fx, fy });
-    }
+  // Skip edge handles on boxes too small on screen to tell them apart.
+  const small = Math.hypot(tr.x - tl.x, tr.y - tl.y) < 40 || Math.hypot(bl.x - tl.x, bl.y - tl.y) < 40;
+  for (const [id, fx, fy] of RESIZE) {
+    if (small && (fx === 0.5 || fy === 0.5)) continue;
+    out.push({ id, screen: at(fx, fy), fx, fy });
   }
-  if (node.type !== 'frame') {
+  if (sel.node && sel.node.type !== 'frame') {
     // Up from the top edge's midpoint, along the box's own "up".
     const top = at(0.5, 0);
     const up = { x: tl.x - bl.x, y: tl.y - bl.y };
