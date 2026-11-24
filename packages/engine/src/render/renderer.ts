@@ -647,7 +647,7 @@ export class Renderer {
    * A path's points (white squares) and handles (lines to small dots) on screen.
    * While drawing, the first point gets a large ring: the target that closes the path.
    */
-  private drawAnchors(c: Canvas, camera: Camera, editor: Editor, n: Node, drawing: boolean): void {
+  private drawAnchors(c: Canvas, camera: Camera, editor: Editor, n: Node, drawing: boolean, selected: number | null = null): void {
     const m = editor.doc.worldTransform(n.id);
     const scr = (q: Point) => camera.worldToScreen(apply(m, q));
     const anchors = n.path!.anchors;
@@ -667,7 +667,9 @@ export class Renderer {
       this.line.setStrokeWidth(1.5);
       outline.delete();
     }
-    anchors.forEach(a => {
+    anchors.forEach((a, i) => {
+      // Drawing shows every handle; editing only the selected point's.
+      if (!drawing && i !== selected) return;
       const p = scr(a.p);
       for (const t of [a.in, a.out]) {
         if (!t.x && !t.y) continue;
@@ -680,7 +682,7 @@ export class Renderer {
     anchors.forEach((a, i) => {
       const p = scr(a.p);
       const r = this.ck.XYWHRect(p.x - 5, p.y - 5, 10, 10);
-      this.fill.setColor(i === anchors.length - 1 && drawing ? accent : this.ck.WHITE);
+      this.fill.setColor((drawing ? i === anchors.length - 1 : i === selected) ? accent : this.ck.WHITE);
       c.drawRect(r, this.fill);
       c.drawRect(r, this.line);
     });
@@ -834,6 +836,8 @@ export class Renderer {
 
     const pn = editor.tool === 'pen' ? editor.penNode() : null;
     if (pn?.path) this.drawAnchors(c, camera, editor, pn, true);
+    const pe = editor.pointEdit, en = pe ? editor.doc.get(pe.nodeId) : undefined;
+    if (pe && en?.path) this.drawAnchors(c, camera, editor, en, false, pe.anchor);
 
     if (editor.marquee) {
       const r = this.screenRect(camera, editor.marquee);

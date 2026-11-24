@@ -6,7 +6,8 @@ import { Doc } from '../doc/document.ts';
 import { History } from '../doc/history.ts';
 import { keyBetween, keysAfter } from '../doc/fractional.ts';
 import { createNode } from '../doc/factory.ts';
-import { pathBounds, scalePath, shiftPath, type VectorPath } from '../doc/shapes.ts';
+import { pathBounds, scalePath, shapePath, shiftPath, type Anchor, type VectorPath } from '../doc/shapes.ts';
+import { splitAt } from './tools/points.ts';
 import { starterDoc } from '../doc/serialize.ts';
 import type { Op } from '../doc/ops.ts';
 import { isGradient, type GradientPaint, type ImagePaint, type Node, type NodeProp, type TextProps } from '../doc/types.ts';
@@ -47,6 +48,8 @@ export interface EditorState {
   canRedo: boolean;
   /** Points in the path the pen is drawing (0 when none). */
   penPoints: number;
+  /** Point editing: the selected point, if any, and whether it is smooth / split. */
+  pointEdit: { anchor: number | null; smooth: boolean; split: boolean } | null;
 }
 
 export class Editor {
@@ -110,6 +113,7 @@ export class Editor {
       canUndo: this.history.canUndo,
       canRedo: this.history.canRedo,
       penPoints: this.penNode()?.path?.anchors.length ?? 0,
+      pointEdit: this.pointEditState(),
     };
   }
 
@@ -129,6 +133,11 @@ export class Editor {
     // Drop selected ids that an undo or delete removed.
     this.selection = this.selection.filter(id => this.doc.nodes.has(id));
     if (this.textEdit && !this.doc.nodes.has(this.textEdit.nodeId)) this.textEdit = null;
+    if (this.pointEdit) {
+      const n = this.doc.get(this.pointEdit.nodeId);
+      if (n?.type !== 'vector' || !n.path) this.pointEdit = null;
+      else if (this.pointEdit.anchor !== null && this.pointEdit.anchor >= n.path.anchors.length) this.pointEdit.anchor = null;
+    }
     if (this.gradientEdit && !this.gradientPaint(this.gradientEdit)) this.gradientEdit = null;
     this.emit();
   }
@@ -139,6 +148,103 @@ export class Editor {
     if (this.tool === 'pen' && tool !== 'pen') this.finishPen();
     this.tool = tool;
     this.emit();
+  }
+
+  // ── Point editing ────────────────────────────────────────────
+
+  /** The path whose points are being edited, and the selected point. */
+  pointEdit: { nodeId: string; anchor: number | null } | null = null;
+
+  private pointEditState(): EditorState['pointEdit'] {
+    const pe = this.pointEdit;
+    if (!pe) return null;
+    const a = pe.anchor !== null ? this.doc.get(pe.nodeId)?.path?.anchors[pe.anchor] : undefined;
+    return { anchor: a ? pe.anchor : null, smooth: !!a && isSmooth(a), split: !!a?.split };
+  }
+
+  /**
+   * Edit a layer's points. Polygons, stars and lines become paths first (one
+   * undo step); vectors go straight in.
+   */
+  editPoints(id: string): void {
+    const n = this.doc.get(id);
+    if (!n) return;
+    if (n.type === 'polygon' || n.type === 'star' || n.type === 'line') {
+      const path = shapePath(n)!;
+      const vector: Node = { ...n, type: 'vector', path };
+      delete vector.pointCount;
+      delete vector.innerRatio;
+      this.transact('Convert to path', () => [{ t: 'remove', id }, { t: 'add', node: vector }]);
+    } else if (n.type !== 'vector') return;
+    this.select([id]);
+    this.pointEdit = { nodeId: id, anchor: null };
+    this.emit();
+  }
+
+  endPointEdit(): void {
+    if (!this.pointEdit) return;
+    this.pointEdit = null;
+    this.emit();
+  }
+
+  selectPoint(i: number | null): void {
+    if (!this.pointEdit) return;
+    this.pointEdit.anchor = i;
+    this.emit();
+  }
+
+  private editedPath(): { n: Node; i: number } | null {
+    const pe = this.pointEdit;
+    const n = pe ? this.doc.get(pe.nodeId) : undefined;
+    if (!pe || pe.anchor === null || n?.type !== 'vector' || !n.path?.anchors[pe.anchor]) return null;
+    return { n, i: pe.anchor };
+  }
+
+  /** Add a point on the path (from a tap), without changing its shape, and select it. */
+  insertPoint(n: Node, at: { seg: number; t: number }): void {
+    if (!n.path || at.seg < 0) return;
+    const { path, index } = splitAt(n.path, at.seg, at.t);
+    this.transact('Add point', () => this.pathOps(n, path));
+    this.selectPoint(index);
+  }
+
+  deletePoint(): void {
+    const e = this.editedPath();
+    if (!e) return;
+    const anchors = e.n.path!.anchors.filter((_, j) => j !== e.i);
+    if (anchors.length < 2) {
+      this.pointEdit = null;
+      this.transact('Delete path', () => [{ t: 'remove', id: e.n.id }]);
+      return;
+    }
+    this.transact('Delete point', () => this.pathOps(e.n, { ...e.n.path!, anchors, closed: e.n.path!.closed && anchors.length > 2 }));
+    this.selectPoint(null);
+  }
+
+  /** Corner <-> smooth. A new smooth point's handles run parallel to its neighbours, a sixth of the way between them each side. */
+  toggleSmooth(): void {
+    const e = this.editedPath();
+    if (!e) return;
+    const path = e.n.path!, anchors = path.anchors.map(a => ({ ...a })), a = anchors[e.i]!;
+    if (isSmooth(a) || a.split) {
+      anchors[e.i] = { p: a.p, in: { x: 0, y: 0 }, out: { x: 0, y: 0 } };
+    } else {
+      const k = anchors.length;
+      const prev = anchors[e.i - 1] ?? (path.closed ? anchors[k - 1] : undefined);
+      const next = anchors[e.i + 1] ?? (path.closed ? anchors[0] : undefined);
+      const from = prev?.p ?? a.p, to = next?.p ?? a.p;
+      const out = { x: (to.x - from.x) / 6, y: (to.y - from.y) / 6 };
+      anchors[e.i] = { p: a.p, out, in: { x: -out.x, y: -out.y } };
+    }
+    this.transact('Point type', () => this.pathOps(e.n, { ...path, anchors }));
+  }
+
+  /** Let the selected point's handles move on their own (or mirror again). */
+  toggleSplit(): void {
+    const e = this.editedPath();
+    if (!e) return;
+    const anchors = e.n.path!.anchors.map((a, j) => (j === e.i ? { ...a, split: !a.split } : a));
+    this.transact('Break handles', () => this.pathOps(e.n, { ...e.n.path!, anchors }));
   }
 
   // ── Pen ──────────────────────────────────────────────────────
@@ -557,4 +663,9 @@ export class Editor {
       return { t: 'set', id: n.id, prop: 'transform', value: [t0[0], t0[1], t0[2], t0[3], t0[4] + d.x, t0[5] + d.y] } as Op;
     });
   }
+}
+
+/** Handles present and mirrored (within rounding). */
+function isSmooth(a: Anchor): boolean {
+  return (a.out.x !== 0 || a.out.y !== 0) && Math.abs(a.in.x + a.out.x) < 0.01 && Math.abs(a.in.y + a.out.y) < 0.01;
 }

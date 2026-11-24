@@ -9,6 +9,7 @@ import { localBox, worldBounds } from '../bounds.ts';
 import { snapBox, snapEdges } from '../snap.ts';
 import { gradientHandles, handleAt, handlesFor, selectionBox, type Handle, type SelectionBox } from '../handles.ts';
 import { hitStack, marqueeHits } from '../hit.ts';
+import { PointsMode } from './points.ts';
 import { dragThreshold, hitRadius, type PointerInfo, type Tool, type ToolContext } from './tool.ts';
 
 type Mode =
@@ -20,7 +21,8 @@ type Mode =
   | { kind: 'gradient'; end: 'from' | 'to' }
   | { kind: 'textSelect'; anchor: number }
   | { kind: 'marquee'; base: string[] }
-  | { kind: 'pan'; last: Point };
+  | { kind: 'pan'; last: Point }
+  | { kind: 'points' };
 
 const SNAP_ANGLE = Math.PI / 12; // 15°
 
@@ -31,7 +33,9 @@ export class SelectTool implements Tool {
 
   private ctx: ToolContext;
 
-  constructor(ctx: ToolContext) { this.ctx = ctx; }
+  private points: PointsMode;
+
+  constructor(ctx: ToolContext) { this.ctx = ctx; this.points = new PointsMode(ctx); }
 
   down(p: PointerInfo): void {
     const { editor, camera } = this.ctx;
@@ -48,6 +52,12 @@ export class SelectTool implements Tool {
         return;
       }
       editor.endTextEdit();
+    }
+
+    // Editing points: presses on the path edit it; anywhere else stops editing.
+    if (editor.pointEdit) {
+      if (this.points.down(p)) { this.mode = { kind: 'points' }; return; }
+      editor.endPointEdit();
     }
 
     // While a gradient is being edited, its end points are the only handles.
@@ -93,6 +103,7 @@ export class SelectTool implements Tool {
     if (!start) return;
     const m = this.mode;
 
+    if (m.kind === 'points') { this.points.move(p); return; }
     if (m.kind === 'press') {
       if (Math.hypot(p.screen.x - start.screen.x, p.screen.y - start.screen.y) < dragThreshold(p)) return;
       this.mode = this.startDrag(m.hit, p);
@@ -156,6 +167,7 @@ export class SelectTool implements Tool {
   up(p: PointerInfo): void {
     const { editor } = this.ctx;
     const m = this.mode;
+    if (m.kind === 'points') { this.points.up(); this.mode = { kind: 'idle' }; this.downAt = null; return; }
     if (m.kind === 'press') this.tap(m.stack, p);
     if (m.kind === 'textSelect') { this.mode = { kind: 'idle' }; this.downAt = null; return; }
     if (m.kind === 'move') { editor.guides = []; editor.dropAt(m.nodes, p.world); }
@@ -168,6 +180,7 @@ export class SelectTool implements Tool {
 
   cancel(): void {
     const { editor } = this.ctx;
+    if (this.mode.kind === 'points') this.points.cancel();
     if (this.mode.kind === 'move' || this.mode.kind === 'resize' || this.mode.kind === 'rotate' || this.mode.kind === 'gradient') editor.history.cancel();
     if (this.mode.kind === 'marquee') { editor.marquee = null; editor.emit(); }
     editor.guides = [];
@@ -218,6 +231,11 @@ export class SelectTool implements Tool {
       if (current >= 0) pick = stack[(current + 1) % stack.length]!;
     }
     if (!pick) { if (!additive) editor.select([]); return; }
+    // A tap on the path that is already the only selection edits its points.
+    if (!additive && pick.type === 'vector' && editor.selection.length === 1 && editor.selection[0] === pick.id) {
+      editor.editPoints(pick.id);
+      return;
+    }
     // A tap on the text layer that is already the only selection starts typing there.
     if (!additive && pick.type === 'text' && editor.selection.length === 1 && editor.selection[0] === pick.id) {
       const i = this.ctx.textIndexAt(pick.id, p.world);

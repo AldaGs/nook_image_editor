@@ -5,7 +5,8 @@
 import type { Point } from '../geom/affine.ts';
 import type { Node } from './types.ts';
 
-export interface Anchor { p: Point; in: Point; out: Point }
+/** `split`: the two handles move on their own (otherwise dragging one mirrors the other). */
+export interface Anchor { p: Point; in: Point; out: Point; split?: boolean }
 export interface VectorPath { anchors: Anchor[]; closed: boolean }
 
 const corner = (x: number, y: number): Anchor => ({ p: { x, y }, in: { x: 0, y: 0 }, out: { x: 0, y: 0 } });

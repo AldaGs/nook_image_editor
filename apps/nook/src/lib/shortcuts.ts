@@ -13,6 +13,7 @@ export function attachShortcuts(editor: Editor, actions: { fit: () => void }): (
     else if (mod && key === 'g') editor[e.shiftKey ? 'ungroup' : 'group']();
     else if (mod && key === 'a') editor.select(editor.doc.children(editor.pageId).map(n => n.id));
     else if (key === 'delete' || key === 'backspace') editor.deleteSelection();
+    else if (key === 'escape' && editor.pointEdit) editor.endPointEdit();
     else if (key === 'escape') { editor.select([]); editor.setTool('select'); }
     else if (key === ']' && editor.selection.length === 1) editor.reorder(editor.selection[0]!, 1);
     else if (key === '[' && editor.selection.length === 1) editor.reorder(editor.selection[0]!, -1);
