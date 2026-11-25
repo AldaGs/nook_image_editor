@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Editor } from './editor.ts';
 import { worldCorners } from './bounds.ts';
+import { hitStack } from './hit.ts';
 import { starterDoc, toFile, fromFile, usedAssets } from '../doc/serialize.ts';
 import { createNode, FRAME_PRESETS } from '../doc/factory.ts';
 import { rotation, multiply, translation } from '../geom/affine.ts';
@@ -287,4 +288,16 @@ test('addVectors groups pasted shapes, fits them to a board and scales strokes',
 
   const one = ed.addVectors([{ name: 'A', contours: [sq(0, 0, 10)], strokes: [], ...look }], 'Icon', { x: -5000, y: 0 })!;
   assert.deepEqual([one.type, one.name, one.parentId, one.transform[4], one.transform[5]], ['vector', 'Icon', ed.pageId, -5005, -5]);
+});
+
+test('a hit inside a group picks the group, unless the user has stepped into it', () => {
+  const ed = new Editor(starterDoc());
+  const sq = (x: number) => ({ anchors: [[x, 0], [x + 10, 0], [x + 10, 10], [x, 10]].map(([px, py]) => ({ p: { x: px!, y: py! }, in: { x: 0, y: 0 }, out: { x: 0, y: 0 } })), closed: true });
+  const look = { fillRule: 'nonzero' as const, fills: [solid({ r: 0, g: 0, b: 0, a: 1 })], strokes: [], opacity: 1 };
+  const g = ed.addVectors([{ name: 'A', contours: [sq(0)], ...look }, { name: 'B', contours: [sq(20)], ...look }], 'G', { x: -5000, y: 0 })!;
+  const [a, b] = ed.doc.children(g.id);
+  const at = (n: typeof a) => ({ x: n!.transform[4] + g.transform[4] + 5, y: g.transform[5] + 5 });
+  assert.equal(hitStack(ed.doc, ed.pageId, at(a))[0]!.id, g.id);
+  assert.equal(hitStack(ed.doc, ed.pageId, at(a), 0, g.id)[0]!.id, a!.id);
+  assert.equal(hitStack(ed.doc, ed.pageId, at(b), 0, g.id)[0]!.id, b!.id);
 });

@@ -23,9 +23,10 @@ function inside(doc: Doc, node: Node, p: Point, slop: number): boolean {
 /**
  * Selectable nodes under `p`, topmost first. A hit inside a group selects the
  * outermost group (like Figma); the frame itself comes after its contents.
- * Hidden and locked nodes are skipped.
+ * `entered` is a group the user has stepped into: its children pick on their
+ * own (groups among them still pick as one). Hidden and locked nodes are skipped.
  */
-export function hitStack(doc: Doc, pageId: string, p: Point, slop = 0): Node[] {
+export function hitStack(doc: Doc, pageId: string, p: Point, slop = 0, entered?: string): Node[] {
   const out: Node[] = [];
   const visit = (parentId: string, groupRoot: Node | null) => {
     const kids = doc.children(parentId);
@@ -38,7 +39,7 @@ export function hitStack(doc: Doc, pageId: string, p: Point, slop = 0): Node[] {
         visit(n.id, null);
         if (inside(doc, n, p, slop)) out.push(n);
       } else if (n.type === 'group' || n.type === 'boolean') {
-        visit(n.id, groupRoot ?? n);
+        visit(n.id, n.id === entered ? null : groupRoot ?? n);
       } else if (inside(doc, n, p, slop)) {
         const pick = groupRoot ?? n;
         if (!out.includes(pick)) out.push(pick);

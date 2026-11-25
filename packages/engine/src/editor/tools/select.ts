@@ -1,10 +1,11 @@
-// Select tool: tap to select (tap again on the same spot to cycle through
+// Select tool: tap to select (tap a selected group again to step into it and
+// pick the layer under the pointer; tap anything else again to cycle through
 // overlapping layers), drag to move, drag handles to resize or rotate.
 // On empty space a finger pans and a mouse draws a marquee; in multi-select
 // mode a finger draws a marquee too.
 
 import { apply, invert, multiply, rotation, translation, type Affine, type Point, type Rect } from '../../geom/affine.ts';
-import type { Node } from '../../doc/types.ts';
+import { isContainer, type Node } from '../../doc/types.ts';
 import { localBox, worldBounds } from '../bounds.ts';
 import { snapBox, snapEdges } from '../snap.ts';
 import { gradientHandles, handleAt, handlesFor, selectionBox, type Handle, type SelectionBox } from '../handles.ts';
@@ -45,7 +46,7 @@ export class SelectTool implements Tool {
     const te = editor.textEdit;
     if (te) {
       const tn = editor.doc.get(te.nodeId);
-      if (tn && hitStack(editor.doc, editor.pageId, p.world, 0).includes(tn)) {
+      if (tn && this.stackAt(p.world, 0).includes(tn)) {
         const i = this.ctx.textIndexAt(tn.id, p.world);
         editor.setTextSelection(i, i, true);
         this.mode = { kind: 'textSelect', anchor: i };
@@ -93,7 +94,7 @@ export class SelectTool implements Tool {
       return;
     }
 
-    const stack = hitStack(editor.doc, editor.pageId, p.world, hitRadius(p) / 3 / camera.zoom);
+    const stack = this.stackAt(p.world, hitRadius(p) / 3 / camera.zoom);
     this.mode = { kind: 'press', hit: stack[0] ?? null, stack };
   }
 
@@ -214,6 +215,13 @@ export class SelectTool implements Tool {
 
   // ── Tap ──────────────────────────────────────────────────────
 
+  /** Hits under a world point; once inside a group (a child of it selected), its other children pick on their own too. */
+  private stackAt(world: Point, slop: number): Node[] {
+    const { editor } = this.ctx;
+    const parent = editor.selection.length === 1 ? editor.doc.get(editor.doc.get(editor.selection[0]!)?.parentId ?? '') : null;
+    return hitStack(editor.doc, editor.pageId, world, slop, parent && isContainer(parent) ? parent.id : undefined);
+  }
+
   private tap(stack: Node[], p: PointerInfo): void {
     const { editor } = this.ctx;
     const additive = p.shift || editor.multiSelect;
@@ -222,6 +230,12 @@ export class SelectTool implements Tool {
     this.lastTap = { screen: p.screen, time: p.time };
 
     let pick = stack[0] ?? null;
+    // Tapping the selected group again steps into it: the layer under the pointer.
+    const sel = editor.selection.length === 1 ? editor.doc.get(editor.selection[0]!) : null;
+    if (again && !additive && sel && isContainer(sel) && pick?.id === sel.id) {
+      const inner = hitStack(editor.doc, editor.pageId, p.world, hitRadius(p) / 3 / this.ctx.camera.zoom, sel.id)[0];
+      if (inner?.parentId === sel.id) { editor.select([inner.id]); return; }
+    }
     if (again && !additive && stack.length > 1) {
       const current = stack.findIndex(n => editor.selection.includes(n.id));
       if (current >= 0) pick = stack[(current + 1) % stack.length]!;
