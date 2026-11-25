@@ -2,7 +2,7 @@
      over it), bottom toolbar. Sheets open on top. -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { Engine } from '@nook/engine';
+  import { usedAssets, type Engine } from '@nook/engine';
   import { exportPbc } from '@nook/scene-export';
   import { requestPersistence } from '@nook/storage';
   import Canvas from './components/Canvas.svelte';
@@ -15,9 +15,10 @@
   import Toolbar from './components/Toolbar.svelte';
   import TopBar from './components/TopBar.svelte';
   import { editor, loadSession, ui } from './lib/session.svelte';
-  import { shareOrDownload } from './lib/files';
+  import { shareFiles, shareOrDownload } from './lib/files';
+  import { zip } from './lib/zip';
   import { attachShortcuts } from './lib/shortcuts';
-  import { imageFiles, importImages } from './lib/assets';
+  import { imageFiles, importImages, loadAsset } from './lib/assets';
 
   let engine = $state<Engine | null>(null);
   let layersOpen = $state(false);
@@ -61,11 +62,37 @@
     engine?.zoomToFit([frame.id]);
   }
 
+  /**
+   * The boards as a PBC scene. With pictures, a .zip holding "Nook board/Nook board.pbc"
+   * and the pictures in "Nook board/assets/" (PBC finds them beside the .pbc); without, the bare .pbc.
+   */
   async function exportToPbc() {
     editor.endTextEdit();
-    const { text, report } = exportPbc(editor.doc, editor.pageId, { measure: engine ? (t, w) => engine!.measureLines(t, w) : undefined });
-    await shareOrDownload('nook-board.pbc', text, 'application/json');
-    notice = report.length ? `Exported with notes:\n• ${report.join('\n• ')}` : null;
+    try {
+      const bytes = new Map<string, Uint8Array>();
+      for (const id of usedAssets(editor.doc)) {
+        const b = await loadAsset(id);
+        if (b) bytes.set(id, new Uint8Array(b));
+      }
+      const ext = (id: string) => (bytes.get(id)?.[0] === 0xff ? 'jpg' : 'png'); // JPEG starts FF D8
+      const { text, report, assets } = exportPbc(editor.doc, editor.pageId, { measure: engine ? (t, w) => engine!.measureLines(t, w) : undefined, assetExt: ext });
+      const name = 'Nook board';
+      if (!assets.length) {
+        await shareOrDownload(`${name}.pbc`, text, 'application/json');
+      } else {
+        const files: { path: string; data: Uint8Array }[] = [{ path: `${name}/${name}.pbc`, data: new TextEncoder().encode(text) }];
+        for (const a of assets) {
+          const data = bytes.get(a.assetId);
+          if (data) files.push({ path: `${name}/${a.path}`, data });
+          else report.push(`A picture couldn't be read from this device, so "${a.path}" is missing from the export.`);
+        }
+        await shareFiles([new File([zip(files)], `${name}.zip`, { type: 'application/zip' })]);
+        report.unshift(`Unzip "${name}.zip" and open "${name}.pbc"; its pictures are in the assets folder next to it.`);
+      }
+      notice = report.length ? `Exported with notes:\n• ${report.join('\n• ')}` : null;
+    } catch (e) {
+      ui.error = `Couldn't export the PBC scene: ${e instanceof Error ? e.message : String(e)}`;
+    }
   }
 </script>
 

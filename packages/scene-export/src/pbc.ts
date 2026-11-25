@@ -20,6 +20,11 @@ export interface PbcExport {
   text: string;
   /** Human-readable notes about what was dropped or changed. */
   report: string[];
+  /**
+   * Pictures the project points to, by Nook asset id, and the relative path
+   * written for each (`assets/<id>.<ext>`). Ship them beside the .pbc.
+   */
+  assets: { assetId: string; path: string }[];
 }
 
 /**
@@ -34,6 +39,8 @@ interface Options {
   seconds?: number;
   /** Real text measurement (the engine's); a rough estimate otherwise. */
   measure?: MeasureLines;
+  /** A picture's file extension by asset id ('png' or 'jpg'); png when unknown. */
+  assetExt?: (assetId: string) => string;
 }
 
 const k = <T>(v: T) => ({ Const: v });
@@ -47,7 +54,7 @@ const estimateLines: MeasureLines = (t, width) => {
   return { width: width === null ? one : Math.min(one, width), height: estimateText(t, width).height };
 };
 
-interface Shared { report: string[]; measure: MeasureLines; fonts: Set<string>; comps: Record<string, unknown>; nextComp: number; fps: number; frames: number }
+interface Shared { assets: Map<string, { id: number; path: string; name: string; width: number; height: number }>; assetExt: (id: string) => string; report: string[]; measure: MeasureLines; fonts: Set<string>; comps: Record<string, unknown>; nextComp: number; fps: number; frames: number }
 interface Ctx { sh: Shared; id: () => number }
 
 /** A comp and its own id counter (ids are per comp, from 1; 0 is the root group). */
@@ -75,7 +82,7 @@ export function exportPbc(doc: Doc, pageId: string, opts: Options = {}): PbcExpo
   const seconds = opts.seconds ?? 5;
   const report: string[] = [];
   const fonts = new Set<string>();
-  const sh: Shared = { report, measure: opts.measure ?? estimateLines, fonts, comps: {}, nextComp: 1, fps, frames: Math.round(fps * seconds) };
+  const sh: Shared = { assets: new Map(), assetExt: opts.assetExt ?? (() => 'png'), report, measure: opts.measure ?? estimateLines, fonts, comps: {}, nextComp: 1, fps, frames: Math.round(fps * seconds) };
   const tops = doc.children(pageId);
   // Top-level boards take the first ids, so comp 1 (the one PBC opens) is the first board.
   const boards = tops.filter(n => n.type === 'frame');
@@ -94,8 +101,12 @@ export function exportPbc(doc: Doc, pageId: string, opts: Options = {}): PbcExpo
 
   if (!boards.length) report.push('There are no frames to export.');
   if (fonts.size) report.push(`Fonts used: ${[...fonts].join(', ')}. PBC finds fonts by name, so install them on the computer that opens this file.`);
-  const project = { comps: Object.fromEntries(Object.entries(comps).sort((a, b) => +a[0] - +b[0])), root: 1 };
-  return { text: JSON.stringify({ project }, null, 2), report };
+  // Pictures as PBC still-image assets, referenced by relative path (PBC resolves it beside the .pbc).
+  const assets = Object.fromEntries([...sh.assets.values()].map(a => [String(a.id), {
+    id: a.id, name: a.name, path: a.path, kind: 'Image', width: a.width, height: a.height, frames: 1, fps: 0,
+  }]));
+  const project = { comps: Object.fromEntries(Object.entries(comps).sort((a, b) => +a[0] - +b[0])), root: 1, assets };
+  return { text: JSON.stringify({ project }, null, 2), report, assets: [...sh.assets].map(([assetId, a]) => ({ assetId, path: a.path })) };
 }
 
 /** One Nook node as a PBC layer (recursively for groups and nested frames). */
@@ -132,6 +143,8 @@ function toLayer(doc: Doc, n: Node, ctx: Ctx): unknown {
     }
     case 'rect':
     case 'ellipse':
+      if (n.fills.filter(f => f.visible).at(-1)?.kind === 'image') return pictureLayer(n, layer, angle, ctx);
+    // falls through
     case 'text': {
       // PBC shapes (and text blocks) are centred on their position: find that
       // centre in the node's own space, then carry it into the parent.
@@ -312,11 +325,39 @@ function paint(n: Node, centre: Point, report: string[]): { fill: unknown; gradi
   const fill = k(withOpacity(paintColor(top), top.opacity));
   if (top.kind === 'solid') return { fill };
   if (top.kind === 'image') {
-    // ponytail: PBC reads footage from files beside the project; Nook's export is one .pbc file for now.
-    report.push(`"${n.name}": image fills aren't in the PBC export yet (Stage 4); it was drawn as a gray box.`);
+    report.push(`"${n.name}": pictures are exported on rectangles and ellipses; on this ${n.type} it was drawn as a gray box.`);
     return { fill };
   }
   return { fill, gradient: gradientOf(n, top, centre) };
+}
+
+/**
+ * A rectangle or ellipse whose top fill is a picture: a PBC Image layer sized
+ * to cover (or fit) the box, centred on it, masked by the box's own shape so a
+ * cover crop and rounded corners match Nook. Strokes and effects stay on it.
+ */
+function pictureLayer(n: Node, layer: Record<string, unknown>, angle: number, ctx: Ctx): unknown {
+  const img = n.fills.filter(f => f.visible).at(-1) as Extract<Paint, { kind: 'image' }>;
+  const sh = ctx.sh;
+  let a = sh.assets.get(img.assetId);
+  if (!a) {
+    a = { id: sh.assets.size + 1, path: `assets/${img.assetId}.${sh.assetExt(img.assetId)}`, name: n.name, width: img.width, height: img.height };
+    sh.assets.set(img.assetId, a);
+  }
+  if (n.fills.filter(f => f.visible).length > 1) sh.report.push(`"${n.name}" has more fills under its picture; only the picture was exported.`);
+  if (n.strokes.some(st => st.paint.visible && st.width > 0)) sh.report.push(`"${n.name}": PBC doesn't draw strokes on pictures yet, so its stroke won't show there.`);
+  const s = (img.scaleMode === 'fill' ? Math.max : Math.min)(n.width / img.width, n.height / img.height);
+  const size = { x: round(img.width * s), y: round(img.height * s) };
+  const box = k({ x: n.width, y: n.height });
+  const mask = { shape: n.type === 'ellipse' ? { Ellipse: { size: box } } : { Rect: { size: box, radius: k(n.cornerRadius ?? 0) } }, inverted: false };
+  const c = affine.apply(n.transform, { x: n.width / 2, y: n.height / 2 });
+  return {
+    ...layer,
+    transform: transform(c.x, c.y, angle, n.opacity * img.opacity),
+    shape: { Image: { asset: a.id, size: k(size) } },
+    mask,
+    ...strokeOf(n, { x: n.width / 2, y: n.height / 2 }, sh.report),
+  };
 }
 
 /** A Nook gradient (unit-box points) as PBC's, in the layer's own space around `centre`. */

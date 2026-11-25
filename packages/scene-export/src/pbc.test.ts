@@ -235,3 +235,25 @@ test('adjust colors becomes PBC colour effects in order, skipping parts at zero'
   assert.equal(fx[3].kind.PhotoFilter.density.Const, 0.4);
   assert.ok(!report.some(r => r.includes('adjust')));
 });
+
+test('a picture fill becomes a PBC Image layer covering its box, masked by its shape, with a relative asset', () => {
+  const ed = new Editor(starterDoc());
+  const board = ed.doc.children(ed.pageId)[0]!;
+  const r = createNode('rect', { parentId: board.id, order: 'y', name: 'Photo', transform: [1, 0, 0, 1, 100, 100], width: 400, height: 200, cornerRadius: 24 });
+  r.fills = [{ kind: 'image', assetId: 'abc', width: 1000, height: 1000, scaleMode: 'fill', opacity: 1, blendMode: 'normal', visible: true }];
+  const e = createNode('ellipse', { parentId: board.id, order: 'z', name: 'Avatar', width: 100, height: 100 });
+  e.fills = [{ ...r.fills[0]!, scaleMode: 'fit' } as typeof r.fills[number]];
+  ed.transact('Add', () => [{ t: 'add', node: r }, { t: 'add', node: e }]);
+  const out = exportPbc(ed.doc, ed.pageId, { assetExt: () => 'jpg' });
+  const { project } = JSON.parse(out.text);
+  assert.deepEqual(out.assets, [{ assetId: 'abc', path: 'assets/abc.jpg' }], 'one file, shared by both layers');
+  assert.deepEqual(project.assets['1'], { id: 1, name: 'Photo', path: 'assets/abc.jpg', kind: 'Image', width: 1000, height: 1000, frames: 1, fps: 0 });
+  const [photo, avatar] = project.comps['1'].root.children.slice(-2);
+  assert.equal(photo.shape.Image.asset, 1);
+  assert.deepEqual(photo.shape.Image.size.Const, { x: 400, y: 400 }, 'cover: scaled to the wider side');
+  assert.deepEqual(photo.transform.position.Const, { x: 300, y: 200, z: 0 });
+  assert.deepEqual(photo.mask.shape.Rect.size.Const, { x: 400, y: 200 });
+  assert.equal(photo.mask.shape.Rect.radius.Const, 24);
+  assert.ok(avatar.mask.shape.Ellipse);
+  assert.ok(!out.report.some(m => m.includes('gray')));
+});

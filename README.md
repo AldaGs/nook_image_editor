@@ -207,6 +207,7 @@ There are seven stages, and each one ships a deployable build. Every "done when"
 
 - Masks: Mask in the selection bar turns the selection into a mask group; the top layer is an alpha mask for the layers below it, as in Illustrator (any layer: shape, text, photo, gradient for soft fades). Invert in the Design sheet. Exported to `.pbc` as a track matte (content in a precomp, matted by the mask above it) and to SVG as a mask.
 - Adjust colors effect: exposure, brightness, contrast, saturation, temperature and hue, with PBC's own formulas, so it exports 1:1 as PBC's Exposure, Brightness/Contrast, Hue/Saturation and Photo Filter effects.
+- Pictures in `.pbc`: a board with pictures exports as a .zip holding the `.pbc` and an `assets/` folder; rectangles and ellipses with a picture become PBC Image layers (cover or fit, masked by their shape). PBC resolves the relative paths beside the `.pbc`.
 - Booleans export to `.pbc` as compound paths (holes fully inside a shape still draw filled in PBC; see PBC-GAPS).
 
 **After the MVP, in order:** AE export through a JSX script (desktop), click-to-select and object removal (port from Heirloom), device-to-device sync, auto layout (Yoga), components and instances, SVG/PSD import, then multiplayer.
