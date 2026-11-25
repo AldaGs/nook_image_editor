@@ -4,3 +4,4 @@ dev-dist/
 *.local
 .DS_Store
 apps/nook/public/models/
+package-lock.json
