@@ -37,7 +37,6 @@ None right now. Fixed in PBC on Nov 24, 2026: variable-font weights (`56a3ace`) 
 
 | Rounded corners on a nested board's clip | The precomp's mask is square. | Nothing new: Nook could write the mask as a rounded Vector path. To do on the Nook side. |
 | Strokes on pictures | Sent, but PBC doesn't draw a stroke on an Image layer (the report says so). | Stroke the Image shape's mask or frame outline like other shapes. |
-| Pictures on polygons, stars and paths | Drawn as a gray box; pictures export on rectangles and ellipses. | Nothing new: Nook could mask an Image layer with the Vector path. To do on the Nook side. |
 | Motion notes | Written to the layer's `tags` as `note: …` (the root layer's for a board). | A notes field PBC shows, if wanted. |
 
 ## Text

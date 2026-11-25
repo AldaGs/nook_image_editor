@@ -130,15 +130,11 @@ function toLayer(doc: Doc, n: Node, ctx: Ctx): unknown {
     case 'star':
     case 'line':
     case 'vector': {
+      if (n.fills.filter(f => f.visible).at(-1)?.kind === 'image') return pictureLayer(n, layer, angle, ctx);
       // Path points are in the node's own space, so the layer sits at its origin.
-      const v = (p: { x: number; y: number }) => k({ x: round(p.x), y: round(p.y) });
       const o = affine.apply(n.transform, { x: 0, y: 0 });
-      const path = (p: ReturnType<typeof contoursOf>[number]) =>
-        ({ anchors: p.anchors.map(a => ({ point: v(a.p), in_tan: v(a.in), out_tan: v(a.out) })), closed: p.closed });
-      const [first, ...rest] = contoursOf(n);
-      if (!first) return { ...layer, hidden: true };
-      // Holes and extra pieces ride on the first contour, as PBC stores them.
-      const vector = { ...path(first), ...(rest.length ? { contours: rest.map(path) } : {}), ...(rest.length && n.fillRule === 'evenodd' ? { even_odd: true } : {}) };
+      const vector = vectorPath(n, 0, 0);
+      if (!vector) return { ...layer, hidden: true };
       return { ...layer, transform: transform(o.x, o.y, angle, n.opacity), shape: { Vector: { path: vector } }, ...paint(n, { x: 0, y: 0 }, report), ...strokeOf(n, { x: 0, y: 0 }, report) };
     }
     case 'rect':
@@ -325,7 +321,7 @@ function paint(n: Node, centre: Point, report: string[]): { fill: unknown; gradi
   const fill = k(withOpacity(paintColor(top), top.opacity));
   if (top.kind === 'solid') return { fill };
   if (top.kind === 'image') {
-    report.push(`"${n.name}": pictures are exported on rectangles and ellipses; on this ${n.type} it was drawn as a gray box.`);
+    report.push(`"${n.name}": a picture on a ${n.type} isn't in the PBC export; it was drawn as a gray box.`);
     return { fill };
   }
   return { fill, gradient: gradientOf(n, top, centre) };
@@ -348,16 +344,32 @@ function pictureLayer(n: Node, layer: Record<string, unknown>, angle: number, ct
   if (n.strokes.some(st => st.paint.visible && st.width > 0)) sh.report.push(`"${n.name}": PBC doesn't draw strokes on pictures yet, so its stroke won't show there.`);
   const s = (img.scaleMode === 'fill' ? Math.max : Math.min)(n.width / img.width, n.height / img.height);
   const size = { x: round(img.width * s), y: round(img.height * s) };
+  // The mask is the node's own shape in the picture layer's space (centred on the box).
   const box = k({ x: n.width, y: n.height });
-  const mask = { shape: n.type === 'ellipse' ? { Ellipse: { size: box } } : { Rect: { size: box, radius: k(n.cornerRadius ?? 0) } }, inverted: false };
+  const path = n.type === 'rect' || n.type === 'ellipse' ? null : vectorPath(n, -n.width / 2, -n.height / 2);
+  const shape = n.type === 'ellipse' ? { Ellipse: { size: box } } : n.type === 'rect' ? { Rect: { size: box, radius: k(n.cornerRadius ?? 0) } } : path && { Vector: { path } };
+  const mask = shape ? { mask: { shape, inverted: false } } : {};
   const c = affine.apply(n.transform, { x: n.width / 2, y: n.height / 2 });
   return {
     ...layer,
     transform: transform(c.x, c.y, angle, n.opacity * img.opacity),
     shape: { Image: { asset: a.id, size: k(size) } },
-    mask,
+    ...mask,
     ...strokeOf(n, { x: n.width / 2, y: n.height / 2 }, sh.report),
   };
+}
+
+/**
+ * A node's contours as one PBC VectorPath, moved by (dx, dy): holes and extra
+ * pieces ride on the first contour, as PBC stores them. Null when empty.
+ */
+function vectorPath(n: Node, dx: number, dy: number): unknown {
+  const v = (p: Point, move: boolean) => k({ x: round(p.x + (move ? dx : 0)), y: round(p.y + (move ? dy : 0)) });
+  const path = (p: ReturnType<typeof contoursOf>[number]) =>
+    ({ anchors: p.anchors.map(a => ({ point: v(a.p, true), in_tan: v(a.in, false), out_tan: v(a.out, false) })), closed: p.closed });
+  const [first, ...rest] = contoursOf(n);
+  if (!first) return null;
+  return { ...path(first), ...(rest.length ? { contours: rest.map(path) } : {}), ...(rest.length && n.fillRule === 'evenodd' ? { even_odd: true } : {}) };
 }
 
 /** A Nook gradient (unit-box points) as PBC's, in the layer's own space around `centre`. */

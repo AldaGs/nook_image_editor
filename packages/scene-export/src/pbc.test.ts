@@ -257,3 +257,18 @@ test('a picture fill becomes a PBC Image layer covering its box, masked by its s
   assert.ok(avatar.mask.shape.Ellipse);
   assert.ok(!out.report.some(m => m.includes('gray')));
 });
+
+test('a picture on a star is masked by the star path, centred on the picture layer', () => {
+  const ed = new Editor(starterDoc());
+  const board = ed.doc.children(ed.pageId)[0]!;
+  const s = createNode('star', { parentId: board.id, order: 'y', name: 'Badge', transform: [1, 0, 0, 1, 100, 100], width: 200, height: 200 });
+  s.fills = [{ kind: 'image', assetId: 'p', width: 400, height: 200, scaleMode: 'fill', opacity: 1, blendMode: 'normal', visible: true }];
+  ed.transact('Add', () => [{ t: 'add', node: s }]);
+  const out = exportPbc(ed.doc, ed.pageId);
+  const layer = JSON.parse(out.text).project.comps['1'].root.children.at(-1);
+  assert.ok(layer.shape.Image);
+  assert.deepEqual(layer.transform.position.Const, { x: 200, y: 200, z: 0 });
+  assert.equal(layer.mask.shape.Vector.path.anchors.length, 10);
+  assert.deepEqual(layer.mask.shape.Vector.path.anchors[0].point.Const, { x: 0, y: -100 }, 'the top point, from the centre');
+  assert.deepEqual(out.assets.map(a => a.assetId), ['p']);
+});
