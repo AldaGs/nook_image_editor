@@ -9,6 +9,7 @@ import { createNode, newId } from '../../doc/factory.ts';
 import type { Anchor } from '../../doc/shapes.ts';
 import { localFor } from '../bounds.ts';
 import { frameAt } from '../hit.ts';
+import { PEN_CLOSE_CURSOR, PEN_CURSOR } from './cursors.ts';
 import { dragThreshold, hitRadius, type PointerInfo, type Tool, type ToolContext } from './tool.ts';
 
 export class PenTool implements Tool {
@@ -26,6 +27,15 @@ export class PenTool implements Tool {
     const m = n && editor.doc.worldTransform(n.id);
     const own = n?.path && m ? n.path.anchors.map(a => apply(m, a.p)) : [];
     return { ...p, world: editor.snapWorldPoint(p.world, { zoom: camera.zoom, touch: p.touch, alt: p.alt, skip: n ? [n.id] : [], extra: own }) };
+  }
+
+  cursor(p: PointerInfo): string {
+    if (this.start && this.dragging) return 'move';
+    const { editor, camera } = this.ctx;
+    const n = editor.penNode();
+    const first = n?.path && n.path.anchors.length >= 2 ? n.path.anchors[0] : undefined;
+    return n && first && dist(camera.worldToScreen(apply(editor.doc.worldTransform(n.id), first.p)), p.screen) <= hitRadius(p) * 1.5
+      ? PEN_CLOSE_CURSOR : PEN_CURSOR;
   }
 
   down(raw: PointerInfo): void {

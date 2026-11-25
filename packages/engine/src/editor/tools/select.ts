@@ -8,9 +8,10 @@ import { apply, invert, multiply, rotation, translation, type Affine, type Point
 import { isContainer, type Node } from '../../doc/types.ts';
 import { localBox, worldBounds } from '../bounds.ts';
 import { snapBox, snapEdges } from '../snap.ts';
-import { gradientHandles, handleAt, handlesFor, selectionBox, type Handle, type SelectionBox } from '../handles.ts';
+import { gradientHandles, handleAt, handlesFor, selectionBox, selectionQuad, type Handle, type SelectionBox } from '../handles.ts';
 import { hitStack, marqueeHits } from '../hit.ts';
 import { PointsMode } from './points.ts';
+import { ROTATE_CURSOR, resizeCursor } from './cursors.ts';
 import { dragThreshold, hitRadius, type PointerInfo, type Tool, type ToolContext } from './tool.ts';
 
 type Mode =
@@ -177,6 +178,40 @@ export class SelectTool implements Tool {
     if (m.kind === 'marquee') { editor.marquee = null; editor.emit(); }
     this.mode = { kind: 'idle' };
     this.downAt = null;
+  }
+
+  cursor(p: PointerInfo): string {
+    const { editor, camera } = this.ctx;
+    const m = this.mode;
+    switch (m.kind) {
+      case 'move': return 'move';
+      case 'resize': return this.resizeCursor(m.handle);
+      case 'rotate': return ROTATE_CURSOR;
+      case 'pan': return 'grabbing';
+      case 'textSelect': return 'text';
+      case 'gradient': return 'move';
+      case 'marquee': return 'crosshair';
+      case 'points': return this.points.cursor(p);
+    }
+    // Hovering (or pressed, not yet dragging).
+    if (editor.pointEdit) return this.points.cursor(p);
+    const te = editor.textEdit && editor.doc.get(editor.textEdit.nodeId);
+    if (te && this.stackAt(p.world, 0).includes(te)) return 'text';
+    const gh = gradientHandles(editor, camera);
+    if (gh) return [gh.from, gh.to].some(q => Math.hypot(q.x - p.screen.x, q.y - p.screen.y) <= hitRadius(p)) ? 'move' : '';
+    const h = handleAt(handlesFor(editor, camera), p.screen, hitRadius(p));
+    if (h) return h.id === 'rotate' ? ROTATE_CURSOR : this.resizeCursor(h);
+    return '';
+  }
+
+  /** Resize arrow for a handle, along its direction from the box centre on screen. */
+  private resizeCursor(h: Handle): string {
+    const q = selectionQuad(this.ctx.editor, this.ctx.camera);
+    if (!q) return 'move';
+    const c = { x: (q[0]!.x + q[2]!.x) / 2, y: (q[0]!.y + q[2]!.y) / 2 };
+    // Live handle position (the box moves while resizing).
+    const live = handlesFor(this.ctx.editor, this.ctx.camera).find(x => x.id === h.id)?.screen ?? h.screen;
+    return resizeCursor(c, live);
   }
 
   cancel(): void {

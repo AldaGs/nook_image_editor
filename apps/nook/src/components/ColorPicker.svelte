@@ -105,7 +105,7 @@
 </div>
 
 <style>
-  .picker { display: grid; gap: 4px; padding: 6px 0 10px; }
+  .picker { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 6px 0 10px; }
   .square {
     position: relative;
     height: 160px;

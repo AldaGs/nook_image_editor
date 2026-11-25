@@ -27,7 +27,7 @@
   <div class="group">
     <IconButton icon="undo" label="Undo" disabled={!ui.state.canUndo} onclick={() => editor.undo()} />
     <IconButton icon="redo" label="Redo" disabled={!ui.state.canRedo} onclick={() => editor.redo()} />
-    <IconButton icon="smartphone" label="Safe zones (stories, reels)" active={ui.state.safeZones} onclick={() => editor.setSafeZones(!ui.state.safeZones)} />
+    <IconButton icon="smartphone" label="Safe zones (stories, reels, IG grid crop)" active={ui.state.safeZones} onclick={() => editor.setSafeZones(!ui.state.safeZones)} />
     <IconButton icon="maximize" label="Zoom to fit" onclick={onFit} />
     <IconButton icon="share" label="Export" onclick={onExport} />
   </div>

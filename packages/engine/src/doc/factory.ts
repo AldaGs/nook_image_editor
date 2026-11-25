@@ -66,3 +66,25 @@ export const STORY_SAFE_ZONE = { top: 250 / 1920, bottom: 420 / 1920, right: 120
 
 /** Is this board story-shaped (9:16)? */
 export const isStoryShaped = (w: number, h: number) => h > 0 && Math.abs(w / h - 9 / 16) < 0.01;
+
+/**
+ * Strips of a board that social apps cover or crop, in board units: the
+ * story UI on 9:16, and on 4:5 and 1:1 feed posts the sides the Instagram
+ * profile grid crops away (it shows a centred 3:4). Empty for other sizes.
+ */
+export function safeZoneRects(w: number, h: number): { x: number; y: number; width: number; height: number }[] {
+  if (isStoryShaped(w, h)) {
+    const z = STORY_SAFE_ZONE;
+    return [
+      { x: 0, y: 0, width: w, height: h * z.top },
+      { x: 0, y: h * (1 - z.bottom), width: w, height: h * z.bottom },
+      { x: w * (1 - z.right), y: h * z.top, width: w * z.right, height: h * (1 - z.top - z.bottom) },
+    ];
+  }
+  const r = h > 0 ? w / h : 0;
+  if (Math.abs(r - 4 / 5) < 0.01 || Math.abs(r - 1) < 0.01) {
+    const side = (w - h * 3 / 4) / 2;
+    return [{ x: 0, y: 0, width: side, height: h }, { x: w - side, y: 0, width: side, height: h }];
+  }
+  return [];
+}

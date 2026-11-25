@@ -13,7 +13,7 @@ import { apply, intersects, invert, multiply, type Affine, type Point, type Rect
 import { worldBounds, worldCorners } from '../editor/bounds.ts';
 import type { Editor } from '../editor/editor.ts';
 import { gradientHandles, handlesFor, selectionQuad } from '../editor/handles.ts';
-import { STORY_SAFE_ZONE, isStoryShaped } from '../doc/factory.ts';
+import { safeZoneRects } from '../doc/factory.ts';
 import { contoursFromCmds, contoursOf, type VectorPath } from '../doc/shapes.ts';
 import { COOL, WARM } from '../doc/types.ts';
 
@@ -827,19 +827,13 @@ const kids = doc.children(n.id);
   }
 
   private drawOverlay(c: Canvas, camera: Camera, editor: Editor): void {
-    // Safe zones first, under the selection: shaded strips on story-shaped boards.
+    // Safe zones first, under the selection: shaded strips on social-sized boards.
     if (editor.safeZones) {
       this.fill.setColor(this.color(this.theme.accent, editor.safeZoneOpacity));
       for (const b of editor.doc.children(editor.pageId)) {
-        if (b.type !== 'frame' || !b.visible || !isStoryShaped(b.width, b.height)) continue;
-        const z = STORY_SAFE_ZONE, w = b.width, h = b.height;
+        if (b.type !== 'frame' || !b.visible) continue;
         const m = editor.doc.worldTransform(b.id);
-        const strips: Rect[] = [
-          { x: 0, y: 0, width: w, height: h * z.top },
-          { x: 0, y: h * (1 - z.bottom), width: w, height: h * z.bottom },
-          { x: w * (1 - z.right), y: h * z.top, width: w * z.right, height: h * (1 - z.top - z.bottom) },
-        ];
-        for (const r of strips) {
+        for (const r of safeZoneRects(b.width, b.height)) {
           const pts = [{ x: r.x, y: r.y }, { x: r.x + r.width, y: r.y }, { x: r.x + r.width, y: r.y + r.height }, { x: r.x, y: r.y + r.height }];
           const path = this.polygon(pts.map(q => camera.worldToScreen(apply(m, q))));
           c.drawPath(path, this.fill);

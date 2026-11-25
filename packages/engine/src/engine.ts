@@ -120,6 +120,7 @@ export async function createEngine(canvas: HTMLCanvasElement, opts: EngineOption
     move() {},
     up() {},
     cancel() {},
+    cursor: () => 'crosshair',
   };
   const detachInput = attachInput(canvas, camera, () => picking ? pickTool : tools[editor.tool], () => loop.invalidate());
   const unsubscribe = editor.subscribe(() => loop.invalidate());

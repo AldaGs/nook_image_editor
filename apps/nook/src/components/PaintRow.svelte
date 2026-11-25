@@ -170,7 +170,7 @@
 </div>
 
 <style>
-  .paint { display: grid; gap: 2px; }
+  .paint { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .row { display: flex; align-items: center; gap: 6px; min-height: var(--touch-target); }
   .stop { padding-left: 12px; }
   .thumb { background: var(--border) center / cover no-repeat; }
@@ -186,6 +186,6 @@
   select { flex: 1; min-width: 0; }
   input[type='range'] { flex: 1; min-width: 0; }
   .pct { display: flex; align-items: center; gap: 2px; color: var(--text-muted); font-size: 13px; }
-  .pct input { width: 3.2em; }
+  .pct input { width: 3.8em; }
   .text { background: none; border: none; color: var(--accent); font: inherit; font-size: 13px; min-height: var(--touch-target); padding: 0 6px; }
 </style>

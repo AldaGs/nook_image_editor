@@ -30,7 +30,10 @@
     overflow-y: auto;
     box-sizing: border-box;
     max-width: 100vw;
-    padding: 0 var(--space) calc(var(--space) + env(safe-area-inset-bottom));
+    /* Sections pad themselves; the gutter keeps the scrollbar off edge handles. */
+    padding: 0 0 calc(var(--space) + env(safe-area-inset-bottom));
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
     background: var(--surface);
     border-radius: calc(var(--radius) * 1.6) calc(var(--radius) * 1.6) 0 0;
   }
@@ -40,6 +43,6 @@
     .sheet.peek { left: auto; right: var(--space); top: calc(var(--bar-height) + var(--space)); width: 320px; max-height: calc(100vh - 2 * var(--bar-height) - 4 * var(--space)); transform: none; }
   }
   /* Stays put while the sheet's content scrolls under it. */
-  header { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; padding-left: var(--space); background: var(--surface); }
+  header { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; padding: 0 4px 0 var(--space); background: var(--surface); }
   h2 { font-size: 15px; margin: 0; }
 </style>

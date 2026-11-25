@@ -6,6 +6,7 @@
 import { apply, invert, type Point } from '../../geom/affine.ts';
 import { bezierAt, segments, type Anchor, type VectorPath } from '../../doc/shapes.ts';
 import type { Node } from '../../doc/types.ts';
+import { PEN_CURSOR } from './cursors.ts';
 import { dragThreshold, type PointerInfo, type ToolContext } from './tool.ts';
 
 /** Touch target radius for points and handles, CSS px (44 px across on touch). */
@@ -116,6 +117,18 @@ export class PointsMode {
       return;
     }
     editor.history.commit();
+  }
+
+  /** Move over points and while dragging; the add-point pen over the path. */
+  cursor(p: PointerInfo): string {
+    if (this.drag) return this.drag.kind === 'segment' ? PEN_CURSOR : 'move';
+    const { editor, camera } = this.ctx;
+    const n = this.node();
+    if (!n) return '';
+    const m = editor.doc.worldTransform(n.id);
+    const r = pointRadius(p);
+    if (n.path!.anchors.some(a => { const s = camera.worldToScreen(apply(m, a.p)); return Math.hypot(s.x - p.screen.x, s.y - p.screen.y) <= r; })) return 'move';
+    return nearestOnPath(n.path!, apply(invert(m), p.world)).dist * camera.zoom <= r ? PEN_CURSOR : '';
   }
 
   cancel(): void {

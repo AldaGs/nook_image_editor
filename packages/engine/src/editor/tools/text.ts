@@ -17,6 +17,8 @@ export class TextTool implements Tool {
 
   constructor(ctx: ToolContext) { this.ctx = ctx; }
 
+  cursor(): string { return 'text'; }
+
   down(p: PointerInfo): void { this.start = p; }
 
   move(): void {}

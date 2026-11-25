@@ -29,6 +29,8 @@ export class ShapeTool implements Tool {
     this.type = type;
   }
 
+  cursor(): string { return 'crosshair'; }
+
   down(p: PointerInfo): void {
     const { editor } = this.ctx;
     this.start = p;

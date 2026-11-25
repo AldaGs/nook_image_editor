@@ -29,6 +29,8 @@ export interface Tool {
   up(p: PointerInfo): void;
   /** Abort the current interaction and undo anything it changed. */
   cancel(): void;
+  /** CSS cursor for a mouse at `p` (hovering or dragging); default arrow when absent. */
+  cursor?(p: PointerInfo): string;
 }
 
 /** Movement (CSS px) before a press becomes a drag. Fingers wobble more than mice. */

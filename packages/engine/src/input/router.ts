@@ -30,12 +30,19 @@ export function attachInput(el: HTMLElement, camera: Camera, tool: () => Tool, i
     return { centre, dist };
   };
 
+  // Mouse cursor: the pan hand, else whatever the tool says for this spot.
+  const setCursor = (e: PointerEvent) => {
+    if (e.pointerType !== 'mouse') return;
+    el.style.cursor = pan ? 'grabbing' : space ? 'grab' : tool().cursor?.(info(e)) ?? '';
+  };
+
   const down = (e: PointerEvent) => {
     el.setPointerCapture(e.pointerId);
     if (e.pointerType === 'touch') touches.set(e.pointerId, local(e));
 
     if (e.button === 1 || (space && e.pointerType === 'mouse')) {
       pan = { id: e.pointerId, last: local(e) };
+      setCursor(e);
       e.preventDefault();
       return;
     }
@@ -50,6 +57,7 @@ export function attachInput(el: HTMLElement, camera: Camera, tool: () => Tool, i
       toolPointer = e.pointerId;
       tool().down(info(e));
     }
+    setCursor(e);
   };
 
   const move = (e: PointerEvent) => {
@@ -68,6 +76,7 @@ export function attachInput(el: HTMLElement, camera: Camera, tool: () => Tool, i
     } else if (e.pointerId === toolPointer) {
       tool().move(info(e));
     }
+    setCursor(e);
   };
 
   const up = (e: PointerEvent) => {
@@ -80,6 +89,7 @@ export function attachInput(el: HTMLElement, camera: Camera, tool: () => Tool, i
     }
     // Lifting one of two fingers ends the pinch; the other finger idles until lifted.
     pinch = touches.size >= 2 ? pinchState() : null;
+    setCursor(e);
   };
 
   const wheel = (e: WheelEvent) => {
