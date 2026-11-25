@@ -10,12 +10,15 @@ import { contoursBounds, scalePath, shapePath, shiftPath, type Anchor, type Vect
 import { splitAt } from './tools/points.ts';
 import { starterDoc } from '../doc/serialize.ts';
 import type { Op } from '../doc/ops.ts';
-import { isContainer, isGradient, type BooleanOp, type GradientPaint, type ImagePaint, type Node, type NodeProp, type TextProps } from '../doc/types.ts';
+import { isContainer, isGradient, type BooleanOp, type GradientPaint, type ImagePaint, type Node, type NodeProp, type Paint, type Stroke, type TextProps } from '../doc/types.ts';
 import { applyVector, invert, multiply, rotation, translation, type Affine, type Point, type Rect } from '../geom/affine.ts';
 import { localFor, worldBounds } from './bounds.ts';
 import { boxPoints, snapPoint } from './snap.ts';
 import { frameAt } from './hit.ts';
 import type { Guide } from './snap.ts';
+
+/** One shape for addVectors: its contours and look. */
+export interface VectorShape { name: string; contours: VectorPath[]; fillRule: 'nonzero' | 'evenodd'; fills: Paint[]; strokes: Stroke[]; opacity: number }
 
 export type ToolId = 'select' | 'rect' | 'ellipse' | 'polygon' | 'star' | 'line' | 'pen' | 'frame' | 'text';
 
@@ -508,6 +511,43 @@ export class Editor {
     });
     this.transact('Add image', () => [{ t: 'add', node }]);
     return node;
+  }
+
+  /**
+   * Add drawn shapes (contours in one shared space, e.g. a pasted SVG's) as
+   * vector layers, grouped when there are several. Placed like addImage: on a
+   * board centred and shrunk to fit (strokes too), else centred on `at`.
+   */
+  addVectors(shapes: VectorShape[], name: string, at: Point): Node | null {
+    const all = shapes.filter(s => s.contours.length);
+    if (!all.length) return null;
+    const B = contoursBounds(all.flatMap(s => s.contours));
+    const frame = frameAt(this.doc, this.pageId, at);
+    const parentId = frame?.id ?? this.pageId;
+    const s = frame ? Math.min(1, frame.width / B.width, frame.height / B.height) : 1;
+    const w = B.width * s, h = B.height * s;
+    const x = Math.round(frame ? (frame.width - w) / 2 : at.x - w / 2), y = Math.round(frame ? (frame.height - h) / 2 : at.y - h / 2);
+    const r = (v: number) => Math.round(v * 100) / 100;
+    const group = all.length > 1
+      ? createNode('group', { name, parentId, order: this.orderAtTop(parentId), width: 0, height: 0, transform: translation(x, y) })
+      : null;
+    const orders = keysAfter(null, all.length);
+    const nodes = all.map((sh, i) => {
+      const cs = sh.contours.map(p => scalePath(shiftPath(p, -B.x, -B.y), s, s));
+      const b = contoursBounds(cs);
+      const [first, ...rest] = cs.map(p => shiftPath(p, -b.x, -b.y));
+      const off = group ? { x: 0, y: 0 } : { x, y };
+      return createNode('vector', {
+        name: group ? sh.name : name, parentId: group?.id ?? parentId, order: group ? orders[i]! : this.orderAtTop(parentId),
+        transform: translation(off.x + r(b.x), off.y + r(b.y)), width: r(b.width), height: r(b.height), opacity: sh.opacity,
+        fills: sh.fills, strokes: sh.strokes.map(k => ({ ...k, width: r(k.width * s) })),
+        path: first!, ...(rest.length ? { subpaths: rest, fillRule: sh.fillRule } : {}),
+      });
+    });
+    this.transact('Add vectors', () => [...(group ? [group] : []), ...nodes].map(node => ({ t: 'add', node }) as Op));
+    const top = group ?? nodes[0]!;
+    this.select([top.id]);
+    return top;
   }
 
   /** Delete the selection and everything inside it. */

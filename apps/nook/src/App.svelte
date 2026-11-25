@@ -19,6 +19,7 @@
   import { zip } from './lib/zip';
   import { attachShortcuts } from './lib/shortcuts';
   import { imageFiles, importImages, loadAsset } from './lib/assets';
+  import { svgText } from './lib/svg';
 
   let engine = $state<Engine | null>(null);
   let layersOpen = $state(false);
@@ -38,11 +39,13 @@
   onMount(() => {
     loadSession();
     requestPersistence(); // ask the browser not to evict local files (matters on iOS)
-    // Pasted pictures land in the middle of the view (text fields keep their own paste).
+    // Pasted pictures and SVG land in the middle of the view (text fields keep their own paste).
     const paste = (e: ClipboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && /^(INPUT|TEXTAREA)$/.test(t.tagName)) return;
       const files = imageFiles(e.clipboardData?.files);
+      const svg = files.length ? '' : svgText(e.clipboardData);
+      if (svg) files.push(new File([svg], 'SVG.svg', { type: 'image/svg+xml' }));
       if (!files.length) return;
       e.preventDefault();
       importImages(files);

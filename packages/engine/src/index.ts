@@ -1,7 +1,7 @@
 // Public API of @nook/engine. The engine never imports UI code.
 export { createEngine, type Engine, type EngineOptions, type FrameLabel } from './engine.ts';
 export { Camera } from './camera/camera.ts';
-export { Editor, estimateText, type EditorState, type ToolId, type GradientTarget, type MeasureText, type TextEdit } from './editor/editor.ts';
+export { Editor, estimateText, type EditorState, type ToolId, type GradientTarget, type MeasureText, type TextEdit, type VectorShape } from './editor/editor.ts';
 export { Doc } from './doc/document.ts';
 export { FRAME_PRESETS, STORY_SAFE_ZONE, isStoryShaped, type FramePreset } from './doc/factory.ts';
 export { toFile, fromFile, starterDoc, usedAssets, type DocFile } from './doc/serialize.ts';

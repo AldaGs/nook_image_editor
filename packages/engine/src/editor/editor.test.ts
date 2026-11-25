@@ -5,7 +5,7 @@ import { worldCorners } from './bounds.ts';
 import { starterDoc, toFile, fromFile, usedAssets } from '../doc/serialize.ts';
 import { createNode, FRAME_PRESETS } from '../doc/factory.ts';
 import { rotation, multiply, translation } from '../geom/affine.ts';
-import { linear, type Node } from '../doc/types.ts';
+import { linear, solid, type Node } from '../doc/types.ts';
 
 const shapes = (ed: Editor) => [...ed.doc.nodes.values()].filter(n => n.type === 'rect');
 const near = (a: number, b: number) => Math.abs(a - b) < 1e-6;
@@ -266,4 +266,25 @@ test('usedAssets lists each picture a document uses once, fills and strokes alik
   ed.addImage({ assetId: 'a1', width: 10, height: 10 }, 'A again', { x: 0, y: 0 });
   ed.setProp([a.id], 'strokes', [{ paint: { kind: 'image', assetId: 'b2', width: 1, height: 1, scaleMode: 'fill', opacity: 1, blendMode: 'normal', visible: true }, width: 2, align: 'center' }]);
   assert.deepEqual(usedAssets(ed.doc).sort(), ['a1', 'b2']);
+});
+
+test('addVectors groups pasted shapes, fits them to a board and scales strokes', () => {
+  const ed = new Editor(starterDoc());
+  const board = ed.doc.children(ed.pageId)[0]!; // 1080×1350 at (0, 0)
+  const sq = (x: number, y: number, s: number) => ({ anchors: [[x, y], [x + s, y], [x + s, y + s], [x, y + s]].map(([px, py]) => ({ p: { x: px!, y: py! }, in: { x: 0, y: 0 }, out: { x: 0, y: 0 } })), closed: true });
+  const look = { fillRule: 'nonzero' as const, fills: [], opacity: 1 };
+  const g = ed.addVectors([
+    { name: 'A', contours: [sq(1000, 1000, 1000)], strokes: [{ paint: solid({ r: 0, g: 0, b: 0, a: 1 }), width: 10, align: 'center' }], ...look },
+    { name: 'B', contours: [sq(3000, 1000, 1000)], strokes: [], ...look },
+  ], 'SVG', { x: 100, y: 100 })!;
+  assert.equal(g.type, 'group');
+  assert.equal(g.parentId, board.id);
+  assert.deepEqual([g.transform[4], g.transform[5]], [0, 495], 'centred: 3000×1000 shrunk to 1080×360');
+  const [a, b] = ed.doc.children(g.id);
+  assert.deepEqual([a!.width, a!.height, a!.transform[4], b!.transform[4]], [360, 360, 0, 720]);
+  assert.equal(a!.strokes[0]!.width, 3.6);
+  assert.deepEqual(ed.selection, [g.id]);
+
+  const one = ed.addVectors([{ name: 'A', contours: [sq(0, 0, 10)], strokes: [], ...look }], 'Icon', { x: -5000, y: 0 })!;
+  assert.deepEqual([one.type, one.name, one.parentId, one.transform[4], one.transform[5]], ['vector', 'Icon', ed.pageId, -5005, -5]);
 });

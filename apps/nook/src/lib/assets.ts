@@ -8,6 +8,7 @@
 import type { Editor, Point } from '@nook/engine';
 import { readFile, writeFile } from '@nook/storage';
 import { canvasRef, editor, ui } from './session.svelte';
+import { svgPicture, svgShapes } from './svg';
 
 const MAX_SIDE = 4096;
 const memory = new Map<string, ArrayBuffer>();
@@ -71,17 +72,28 @@ export async function addImages(editor: Editor, files: Iterable<File>, at: Point
   return ids.length;
 }
 
+const isSvg = (f: File) => f.type === 'image/svg+xml';
+
 /**
  * Import pictures where the user put them: at a drop point (client px), or the
- * middle of the view. Errors (an unreadable file) show as the app's toast.
+ * middle of the view. SVGs come in as vector layers when they can (see svg.ts).
+ * Errors (an unreadable file) show as the app's toast.
  */
 export async function importImages(files: File[], client?: Point): Promise<void> {
   const { engine, canvas } = canvasRef;
   if (!engine || !canvas || !files.length) return;
   const r = canvas.getBoundingClientRect();
   const screen = client ? { x: client.x - r.left, y: client.y - r.top } : { x: r.width / 2, y: r.height / 2 };
+  const at = engine.camera.screenToWorld(screen);
   try {
-    await addImages(editor, files, engine.camera.screenToWorld(screen));
+    const pictures = files.filter(f => !isSvg(f));
+    for (const f of files.filter(isSvg)) {
+      const text = await f.text(), name = f.name.replace(/\.[^.]+$/, '') || 'SVG';
+      const shapes = svgShapes(engine, text);
+      if (shapes) editor.addVectors(shapes, name, at);
+      else pictures.push(await svgPicture(text, name));
+    }
+    if (pictures.length) await addImages(editor, pictures, at);
   } catch (e) {
     ui.error = `Couldn't add that picture: ${e instanceof Error ? e.message : String(e)}`;
   }

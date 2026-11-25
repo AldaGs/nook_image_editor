@@ -286,11 +286,26 @@ export class Renderer {
   flattenContours(doc: Doc, n: Node): { contours: VectorPath[]; fillRule: 'nonzero' | 'evenodd' } | null {
     const sk = n.type === 'group' ? this.combined(doc, { ...n, booleanOp: 'union' }) : this.outline(n, doc);
     if (!sk) return null;
-    const ck = this.ck;
-    const contours = contoursFromCmds(sk.toCmds(), { move: ck.MOVE_VERB, line: ck.LINE_VERB, quad: ck.QUAD_VERB, conic: ck.CONIC_VERB, cubic: ck.CUBIC_VERB, close: ck.CLOSE_VERB });
-    const fillRule = sk.getFillType() === ck.FillType.EvenOdd ? 'evenodd' : 'nonzero';
+    const contours = this.contours(sk);
+    const fillRule = sk.getFillType() === this.ck.FillType.EvenOdd ? 'evenodd' : 'nonzero';
     sk.delete();
     return { contours, fillRule };
+  }
+
+  /** SVG path data (a `d` attribute) mapped through `m`, as contours; null if it doesn't parse. */
+  svgContours(d: string, m: Affine): VectorPath[] | null {
+    const own = this.ck.Path.MakeFromSVGString(d);
+    if (!own) return null;
+    const placed = (new this.ck.PathBuilder().addPath(own, this.matrix(m)) as unknown as { detachAndDelete(): SkPath }).detachAndDelete();
+    own.delete();
+    const out = this.contours(placed);
+    placed.delete();
+    return out;
+  }
+
+  private contours(sk: SkPath): VectorPath[] {
+    const ck = this.ck;
+    return contoursFromCmds(sk.toCmds(), { move: ck.MOVE_VERB, line: ck.LINE_VERB, quad: ck.QUAD_VERB, conic: ck.CONIC_VERB, cubic: ck.CUBIC_VERB, close: ck.CLOSE_VERB });
   }
 
   /**

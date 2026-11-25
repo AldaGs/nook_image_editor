@@ -16,7 +16,7 @@ import { ShapeTool } from './editor/tools/shape.ts';
 import { PenTool } from './editor/tools/pen.ts';
 import { TextTool } from './editor/tools/text.ts';
 import type { Tool, ToolContext } from './editor/tools/tool.ts';
-import { apply, invert, type Point, type Rect } from './geom/affine.ts';
+import { apply, invert, type Affine, type Point, type Rect } from './geom/affine.ts';
 
 export interface EngineOptions {
   wasmUrl: string;
@@ -67,6 +67,8 @@ export interface Engine {
   flatten(): number;
   /** A layer's merged outline in its own space (booleans' result), for SVG export. */
   outline(id: string): { contours: VectorPath[]; fillRule: 'nonzero' | 'evenodd' } | null;
+  /** SVG path data mapped through `m` ([a, b, c, d, tx, ty]) as contours, for pasted SVG; null if it doesn't parse. */
+  svgContours(d: string, m: Affine): VectorPath[] | null;
   invalidate(): void;
   destroy(): void;
 }
@@ -153,6 +155,7 @@ export async function createEngine(canvas: HTMLCanvasElement, opts: EngineOption
       const n = editor.doc.get(id);
       return n ? renderer.flattenContours(editor.doc, n) : null;
     },
+    svgContours: (d, m) => renderer.svgContours(d, m),
     flatten() {
       const done: string[] = [];
       editor.history.begin('Flatten');
