@@ -1,5 +1,7 @@
-// Fonts for text layers: bundled @fontsource files (Latin), fetched the first time
-// a family and weight is drawn. PBC looks fonts up by these same family names, so
+import { catalog, cachedFetch, fontFileUrl, slug } from './fontCatalog.svelte';
+// Fonts for text layers: bundled @fontsource files (Latin) that work offline, plus
+// the full Google Fonts catalog through the Fontsource API, fetched the first time
+// a family and weight is drawn and kept in the Cache API so it works offline after. PBC looks fonts up by these same family names, so
 // a board's fonts must be installed on the desktop that opens the .pbc.
 
 import inter100 from '@fontsource/inter/files/inter-latin-100-normal.woff2?url';
@@ -34,7 +36,7 @@ import spaceGrotesk600 from '@fontsource/space-grotesk/files/space-grotesk-latin
 import spaceGrotesk700 from '@fontsource/space-grotesk/files/space-grotesk-latin-700-normal.woff2?url';
 import anton400 from '@fontsource/anton/files/anton-latin-400-normal.woff2?url';
 
-/** Family → weight → file URL. */
+/** Family → weight → file URL, for the fonts shipped with the app. */
 export const FONTS: Record<string, Record<number, string>> = {
   'Inter': { 100: inter100, 200: inter200, 300: inter300, 400: inter400, 500: inter500, 600: inter600, 700: inter700, 800: inter800, 900: inter900 },
   'Montserrat': { 100: montserrat100, 200: montserrat200, 300: montserrat300, 400: montserrat400, 500: montserrat500, 600: montserrat600, 700: montserrat700, 800: montserrat800, 900: montserrat900 },
@@ -44,14 +46,23 @@ export const FONTS: Record<string, Record<number, string>> = {
   'Anton': { 400: anton400 },
 };
 
-/** The weights a family has, lightest first. */
-export const weightsOf = (family: string): number[] => Object.keys(FONTS[family] ?? FONTS.Inter!).map(Number);
+/** The weights a family has, lightest first: bundled, then from the online catalog. */
+export function weightsOf(family: string): number[] {
+  const bundled = FONTS[family];
+  if (bundled) return Object.keys(bundled).map(Number);
+  const remote = catalog.byFamily.get(family)?.weights ?? catalog.remembered[family];
+  return remote?.length ? [...remote].sort((a, b) => a - b) : Object.keys(FONTS.Inter!).map(Number);
+}
 
-/** The family's file nearest to `weight`, or null for a family we don't ship (text then draws in Inter). */
+/** The family's file nearest to `weight`, or null when it can't be had (text then draws in Inter). */
 export async function loadFont(family: string, weight: number): Promise<ArrayBuffer | null> {
-  const files = FONTS[family];
-  if (!files) return null;
   const nearest = weightsOf(family).reduce((a, b) => (Math.abs(b - weight) < Math.abs(a - weight) ? b : a));
-  const res = await fetch(files[nearest]!);
-  return res.ok ? res.arrayBuffer() : null;
+  const bundled = FONTS[family];
+  if (bundled) {
+    const res = await fetch(bundled[nearest]!);
+    return res.ok ? res.arrayBuffer() : null;
+  }
+  const font = catalog.byFamily.get(family);
+  const res = await cachedFetch(fontFileUrl(font?.id ?? slug(family), font?.defSubset ?? 'latin', nearest));
+  return res?.ok ? res.arrayBuffer() : null;
 }

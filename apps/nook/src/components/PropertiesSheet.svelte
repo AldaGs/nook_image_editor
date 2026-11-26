@@ -8,7 +8,8 @@
   import Swatch from './Swatch.svelte';
   import Sheet from './Sheet.svelte';
   import { editor, ui } from '../lib/session.svelte';
-  import { FONTS, weightsOf } from '../lib/fonts';
+  import { weightsOf } from '../lib/fonts';
+  import FontPicker from './FontPicker.svelte';
   import { motionRole } from '@nook/scene-export';
 
   let { onClose, onEditGradient }: {
@@ -173,11 +174,8 @@
       {@const t = n.text}
       <section>
         <h3>Text</h3>
+        <FontPicker value={t.family} onPick={f => text({ family: f, weight: nearestWeight(f, t.weight) })} />
         <div class="row">
-          <select aria-label="Font" value={t.family}
-            onchange={e => text({ family: e.currentTarget.value, weight: nearestWeight(e.currentTarget.value, t.weight) })}>
-            {#each Object.keys(FONTS) as f (f)}<option value={f}>{f}</option>{/each}
-          </select>
           <select aria-label="Weight" value={t.weight} onchange={e => text({ weight: +e.currentTarget.value })}>
             {#each weightsOf(t.family) as w (w)}<option value={w}>{WEIGHT_NAMES[w]}</option>{/each}
           </select>
