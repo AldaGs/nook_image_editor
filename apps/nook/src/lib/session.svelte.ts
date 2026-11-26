@@ -100,6 +100,7 @@ export async function newProject(): Promise<void> {
   ui.projects.unshift({ id, name: `Project ${ui.projects.length + 1}`, updated: Date.now() });
   await saveIndex();
   await openProject(id);
+  await save(); // so the blank board exists on disk (and syncs) before any edit
 }
 
 /** Save and go back to the home screen. */

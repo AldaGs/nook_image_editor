@@ -278,6 +278,9 @@ export async function clearDrive(): Promise<void> {
   }
 }
 
+// Dev only: inspect the Drive folder from the browser console as `nookDrive`.
+if (import.meta.env.DEV) (globalThis as Record<string, unknown>).nookDrive = { listRemote, sync, drive, read: async (name: string) => { const f = (await listRemote()).get(name); return f ? (await download(f)).text() : null; } };
+
 // Catch up whenever the app comes back to the front.
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') sync();
