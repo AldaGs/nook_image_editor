@@ -12,6 +12,7 @@ export function attachShortcuts(editor: Editor, actions: { fit: () => void }): (
     if (mod && key === 'z') editor[e.shiftKey ? 'redo' : 'undo']();
     else if (mod && key === 'y') editor.redo();
     else if (mod && key === 'g') editor[e.shiftKey ? 'ungroup' : 'group']();
+    else if (mod && key === 'd' && editor.selection.length === 1 && editor.doc.get(editor.selection[0]!)?.type === 'frame') editor.duplicateBoard(editor.selection[0]!);
     else if (mod && key === 'a') editor.select(editor.doc.children(editor.pageId).map(n => n.id));
     else if (key === 'delete' || key === 'backspace') editor.deleteSelection();
     else if (key === 'escape' && editor.pointEdit) editor.endPointEdit();

@@ -59,6 +59,9 @@
     {#if hasPicture}
       <IconButton icon="bookmarkPlus" label="Save to stickers" onclick={async () => { if (one && await saveSticker(one)) ui.error = `Saved "${one.name}" to your stickers.`; }} />
     {/if}
+    {#if one?.type === 'frame'}
+      <IconButton icon="copy" label="Duplicate board (Ctrl+D)" onclick={() => editor.duplicateBoard(one.id)} />
+    {/if}
     <IconButton icon="trash" label="Delete" onclick={() => editor.deleteSelection()} />
   </div>
 {/if}

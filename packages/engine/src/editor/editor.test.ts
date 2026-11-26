@@ -301,3 +301,18 @@ test('a hit inside a group picks the group, unless the user has stepped into it'
   assert.equal(hitStack(ed.doc, ed.pageId, at(a), 0, g.id)[0]!.id, a!.id);
   assert.equal(hitStack(ed.doc, ed.pageId, at(b), 0, g.id)[0]!.id, b!.id);
 });
+
+test('duplicating a board copies its content to the right in one undo step', () => {
+  const ed = new Editor(starterDoc());
+  const frame = ed.doc.children(ed.pageId).find(n => n.type === 'frame')!;
+  const before = ed.doc.nodes.size;
+  const inside = ed.doc.descendants(frame.id).length;
+  const copy = ed.duplicateBoard(frame.id)!;
+  assert.equal(copy.name, `${frame.name} copy`);
+  assert.deepEqual(ed.selection, [copy.id]);
+  assert.equal(ed.doc.descendants(copy.id).length, inside);
+  assert.equal(ed.doc.nodes.size, before + inside + 1);
+  assert.ok(copy.transform[4] > frame.transform[4] + frame.width);
+  ed.undo();
+  assert.equal(ed.doc.nodes.size, before);
+});
