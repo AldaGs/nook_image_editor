@@ -8,6 +8,7 @@
   } from '@nook/ai';
   import Sheet from './Sheet.svelte';
   import { editor, setSafeZoneOpacity } from '../lib/session.svelte';
+  import { confirmAction } from '../lib/confirm.svelte';
   import { clearDrive, connectDrive, disconnectDrive, drive, sync } from '../lib/drive.svelte';
 
   let { onClose }: { onClose: () => void } = $props();
@@ -31,8 +32,8 @@
 
   function toggle(v: boolean) { setAiEnabled(v); on = v; }
   function pick(id: ModelId) { setBackgroundModel(id); model = id; }
-  function clearSync() {
-    if (confirm("Delete everything Nook has saved in your Google Drive and stop syncing here? Projects on your devices stay.")) clearDrive();
+  async function clearSync() {
+    if (await confirmAction('Clear Google Drive?', "Deletes everything Nook has saved in your Google Drive and stops syncing here. Projects on your devices stay.", 'Clear Drive', true)) clearDrive();
   }
   async function remove(path?: string) { await removeAiData(path); await refresh(); }
 </script>

@@ -3,6 +3,7 @@
   import IconButton from './IconButton.svelte';
   import Icon from './Icon.svelte';
   import { readFile } from '@nook/storage';
+  import { ask } from '../lib/confirm.svelte';
   import { connectDrive, drive, reconnectDrive } from '../lib/drive.svelte';
   import { deleteProject, newProject, openProject, renameProject, thumbPath, ui } from '../lib/session.svelte';
 
@@ -24,12 +25,18 @@
   const sorted = $derived([...ui.projects].sort((a, b) => b.updated - a.updated));
   const when = (t: number) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
-  function remove(id: string, name: string) {
-    if (!confirm(`Delete "${name}" from this device? This can't be undone.`)) return;
-    const everywhere = drive.connected && confirm(`Also remove "${name}" from Google Drive and your other devices?
-
-OK: remove everywhere. Cancel: keep it there, just stop syncing it here.`);
-    deleteProject(id, everywhere);
+  async function remove(id: string, name: string) {
+    const choice = drive.connected
+      ? await ask({
+          title: `Delete "${name}"?`,
+          message: "It's removed from this device. This can't be undone.",
+          choices: [
+            { label: 'Delete everywhere', value: 'everywhere', danger: true },
+            { label: 'Delete here, keep in Google Drive', value: 'here' },
+          ],
+        })
+      : await ask({ title: `Delete "${name}"?`, message: "This can't be undone.", choices: [{ label: 'Delete', value: 'here', danger: true }] });
+    if (choice) deleteProject(id, choice === 'everywhere');
   }
 </script>
 

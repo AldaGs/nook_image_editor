@@ -15,6 +15,7 @@
   import Toolbar from './components/Toolbar.svelte';
   import TopBar from './components/TopBar.svelte';
   import Home from './components/Home.svelte';
+  import ConfirmDialog from './components/ConfirmDialog.svelte';
   import { editor, loadSession, ui } from './lib/session.svelte';
   import { shareFiles, shareOrDownload } from './lib/files';
   import { zip } from './lib/zip';
@@ -115,6 +116,7 @@
 </main>
 {/if}
 
+<ConfirmDialog />
 {#if presetsOpen}<PresetSheet onPick={addBoard} onClose={() => (presetsOpen = false)} />{/if}
 {#if stickersOpen}<StickerSheet onClose={() => (stickersOpen = false)} />{/if}
 {#if settingsOpen}<SettingsSheet onClose={() => (settingsOpen = false)} />{/if}

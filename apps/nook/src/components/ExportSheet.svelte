@@ -1,6 +1,7 @@
 <!-- Export: boards as PNG/JPG/WebP at 1x–4x through the share sheet (a carousel
      when several are picked, in board order), or the board set as a PBC scene. -->
 <script lang="ts">
+  import { confirmAction } from '../lib/confirm.svelte';
   import { onMount } from 'svelte';
   import type { Engine, Node } from '@nook/engine';
   import Sheet from './Sheet.svelte';
@@ -92,7 +93,7 @@
 
   async function openFile(file: File | undefined) {
     if (!file) return;
-    if (!confirm('Open this file in place of the current document? Save the current one first if you want to keep it.')) return;
+    if (!(await confirmAction('Open this file?', 'It replaces the current document. Save the current one first if you want to keep it.', 'Open file'))) return;
     try {
       await openDocument(await openNook(file, putAsset));
       engine?.zoomToFit();

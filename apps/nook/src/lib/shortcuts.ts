@@ -5,6 +5,7 @@ export function attachShortcuts(editor: Editor, actions: { fit: () => void }): (
   const onKey = (e: KeyboardEvent) => {
     const t = e.target as HTMLElement | null;
     if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    if (document.querySelector('dialog[open]')) return; // a dialog owns the keyboard (Esc closes it)
     const mod = e.metaKey || e.ctrlKey;
     const key = e.key.toLowerCase();
 
