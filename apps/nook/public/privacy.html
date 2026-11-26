@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy Policy — Nook</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height: 1.6; max-width: 720px; margin: 0 auto; padding: 2rem 1.25rem 4rem; color: #1a1a1a; background: #fff; }
+      @media (prefers-color-scheme: dark) { body { color: #e6e6e6; background: #1c1c1f; } a { color: #8ea2ff; } }
+      h1 { font-size: 1.6rem; }
+      h2 { font-size: 1.15rem; margin-top: 2rem; }
+      code { background: rgba(127,127,127,.15); padding: .1em .35em; border-radius: 4px; }
+      .updated { color: #888; font-size: .9rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Nook — Privacy Policy</h1>
+    <p class="updated">Last updated: 26 November 2026</p>
+
+    <p>
+      Nook (“the app”, “we”, “us”) is a design editor for boards and social posts. This policy explains
+      what data the app handles and what it does <strong>not</strong> do. Nook is <strong>local-first</strong>:
+      your projects are created and stored on your own device, and we do not operate a server that collects or stores them.
+    </p>
+
+    <h2>1. Data you create</h2>
+    <p>
+      Your projects (documents, boards, layers and text), project thumbnails, the pictures you add, saved stickers
+      and app settings are stored on your device in your browser’s storage (the Origin Private File System and local storage).
+      Pictures are re-encoded on import, which strips photo metadata such as GPS location. This data never leaves your
+      device unless you turn on Google Drive sync (see below). We do not have access to it.
+    </p>
+
+    <h2>2. On-device AI</h2>
+    <p>
+      AI features are off by default. When you turn them on, model files are downloaded from the app’s own server to your
+      device, and the models run on your device. Your pictures are not uploaded anywhere for AI processing.
+    </p>
+
+    <h2>3. Optional Google Drive sync</h2>
+    <p>Google Drive sync is an opt-in feature you turn on from the projects screen or Settings.</p>
+
+    <h3>3.1 Google user data the app accesses</h3>
+    <p>
+      <strong>Google API used:</strong> Google Drive API v3.<br />
+      <strong>OAuth scope requested:</strong> exactly one —
+      <code>https://www.googleapis.com/auth/drive.appdata</code>. This scope grants access only to a hidden,
+      application-specific folder (<code>appDataFolder</code>) inside <em>your</em> Google Drive. The folder is
+      invisible in the regular Drive interface and inaccessible to any other application.
+    </p>
+    <p>Within that folder, the app accesses only files it created itself:</p>
+    <ul>
+      <li><code>projects.json</code> — your project list (project ids, names and last-edited times).</li>
+      <li><code>docs/&lt;id&gt;/doc.json</code> and <code>docs/&lt;id&gt;/thumb.png</code> — each project’s document and thumbnail.</li>
+      <li><code>assets/&lt;hash&gt;</code> — the pictures used in your projects, named by a hash of their contents.</li>
+      <li><code>deleted.json</code> — ids of projects you removed from Drive, so your other devices remove them too.</li>
+    </ul>
+    <p>
+      For these files the app reads only the Drive file ID, the file name and the file contents. It does not access
+      other metadata (no <code>owners</code>, <code>permissions</code>, sharing, revisions or comments).
+      Operations used: <code>files.list</code> (restricted to <code>appDataFolder</code>), <code>files.create</code>,
+      <code>files.update</code>, <code>files.get?alt=media</code> and <code>files.delete</code>, all on the app’s own files.
+    </p>
+    <p>
+      <strong>Google user data the app does NOT access:</strong> any other file in your Google Drive (the
+      <code>drive.appdata</code> scope makes this technically impossible), your Google profile, name, email address or photo,
+      or any other Google service. The app requests no sensitive or restricted scopes.
+    </p>
+
+    <h3>3.2 How the app uses this data</h3>
+    <ul>
+      <li><strong>Purpose:</strong> solely to keep your Nook projects in sync between your own devices and to let you recover them.</li>
+      <li><strong>No server-side processing:</strong> all reads and writes go directly between your device and Google’s servers. We operate no backend that receives or proxies your Google user data.</li>
+      <li><strong>No secondary use:</strong> we do not use Google user data to train AI/ML models, for advertising, analytics, profiling, or anything other than sync.</li>
+    </ul>
+
+    <h3>3.3 Storage and sharing</h3>
+    <ul>
+      <li><strong>Storage:</strong> synced files live only in <em>your</em> Google Drive’s hidden app folder. We keep no copy.</li>
+      <li><strong>Tokens:</strong> sign-in uses Google Identity Services. The access token is kept only in your browser’s memory, is never sent to a server we control, and is discarded when you close the app. We do not request a refresh token.</li>
+      <li><strong>Sharing:</strong> we do <strong>not</strong> transfer, sell, share or disclose Google user data to any third party.</li>
+    </ul>
+
+    <h2>4. Google API Services User Data Policy</h2>
+    <p>
+      Nook’s use and transfer of information received from Google APIs adheres to the
+      <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>,
+      including the Limited Use requirements.
+    </p>
+
+    <h2>5. What we do NOT do</h2>
+    <ul>
+      <li>We do not sell, rent or share your data.</li>
+      <li>We do not use your data for advertising or profiling.</li>
+      <li>We do not run analytics or tracking on your projects.</li>
+      <li>We do not store your data on servers we operate.</li>
+    </ul>
+
+    <h2>6. Revoking access and deleting your data</h2>
+    <ul>
+      <li>Turn sync off on a device in Settings → Google Drive sync → “Turn off”.</li>
+      <li>Delete a single project from Drive and all your devices: delete it in the app and choose to remove it from Google Drive too.</li>
+      <li>Delete everything Nook keeps in your Drive with Settings → “Clear Nook data from Google Drive”, or in Google Drive’s settings under “Manage apps”.</li>
+      <li>Revoke the app’s access entirely at <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">your Google Account permissions page</a>.</li>
+      <li>Clearing the app’s site data in your browser removes everything stored on that device.</li>
+    </ul>
+
+    <h2>7. Children</h2>
+    <p>The app is not directed to children under 13 and does not knowingly collect their data.</p>
+
+    <h2>8. Changes</h2>
+    <p>We may update this policy from time to time. Material changes are reflected by the “Last updated” date above.</p>
+
+    <h2>9. Contact</h2>
+    <p>Questions about this policy? Contact <a href="mailto:aldair.gonzalez.30@gmail.com">aldair.gonzalez.30@gmail.com</a>.</p>
+    <p><a href="/">Back to Nook</a></p>
+  </body>
+</html>

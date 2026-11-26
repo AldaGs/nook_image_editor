@@ -63,6 +63,7 @@
         <button type="button" class="secondary" onclick={connectDrive}>Sync with Google Drive</button>
       {/if}
       <button type="button" class="secondary" onclick={clearSync}>Clear Nook data from Google Drive</button>
+      <p class="muted"><a href="/privacy.html" target="_blank">Privacy policy</a> · <a href="/terms.html" target="_blank">Terms</a></p>
     </section>
   {/if}
 

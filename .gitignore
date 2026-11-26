@@ -5,3 +5,4 @@ dev-dist/
 .DS_Store
 apps/nook/public/models/
 package-lock.json
+.env
