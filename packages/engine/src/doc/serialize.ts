@@ -33,6 +33,15 @@ export function usedAssets(doc: Doc): string[] {
 }
 
 /** A new document: one page with three IG-post boards, each with a shape. */
+/** A new project: one empty board. */
+export function blankDoc(width = 2000, height = 2000): Doc {
+  const doc = new Doc();
+  const page = createNode('page', { name: 'Page 1', parentId: null, order: 'V', fills: [] });
+  doc.apply({ t: 'add', node: page });
+  doc.apply({ t: 'add', node: createNode('frame', { name: 'Board 1', parentId: page.id, order: 'V', width, height }) });
+  return doc;
+}
+
 export function starterDoc(): Doc {
   const doc = new Doc();
   const page = createNode('page', { name: 'Page 1', parentId: null, order: 'V', fills: [] });

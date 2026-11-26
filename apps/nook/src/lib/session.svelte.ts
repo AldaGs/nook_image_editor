@@ -1,7 +1,7 @@
 // The editing session: one Editor, its reactive state for Svelte, and autosave
 // to the device (OPFS). The document survives reloads and works offline.
 
-import { Editor, fromFile, starterDoc, toFile, type Doc, type Engine, type EditorState, type RGBA } from '@nook/engine';
+import { Editor, fromFile, starterDoc, blankDoc, toFile, type Doc, type Engine, type EditorState, type RGBA } from '@nook/engine';
 import { readFile, removeEntry, writeFile } from '@nook/storage';
 import { encode } from './export';
 
@@ -81,7 +81,7 @@ export async function openProject(id: string): Promise<void> {
   ui.loaded = false;
   try {
     const file = await readFile(docPath(id));
-    editor.load(file ? fromFile(JSON.parse(await file.text())) : starterDoc());
+    editor.load(file ? fromFile(JSON.parse(await file.text())) : blankDoc());
   } catch (e) {
     ui.error = `Couldn't open the project: ${e instanceof Error ? e.message : e}`;
     ui.loaded = true;
