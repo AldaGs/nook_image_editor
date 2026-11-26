@@ -14,6 +14,7 @@
   import SettingsSheet from './components/SettingsSheet.svelte';
   import Toolbar from './components/Toolbar.svelte';
   import TopBar from './components/TopBar.svelte';
+  import Home from './components/Home.svelte';
   import { editor, loadSession, ui } from './lib/session.svelte';
   import { shareFiles, shareOrDownload } from './lib/files';
   import { zip } from './lib/zip';
@@ -35,12 +36,14 @@
   $effect(() => {
     if (engine && ui.loaded && !fitted) { fitted = true; engine.zoomToFit(); }
   });
+  $effect(() => { if (!ui.projectId) fitted = false; }); // refit when the next project opens
 
   onMount(() => {
     loadSession();
     requestPersistence(); // ask the browser not to evict local files (matters on iOS)
     // Pasted pictures and SVG land in the middle of the view (text fields keep their own paste).
     const paste = (e: ClipboardEvent) => {
+      if (!ui.projectId) return; // nothing to paste into on the home screen
       const t = e.target as HTMLElement | null;
       if (t && /^(INPUT|TEXTAREA)$/.test(t.tagName)) return;
       const files = imageFiles(e.clipboardData?.files);
@@ -99,6 +102,9 @@
   }
 </script>
 
+{#if !ui.projectId}
+  <Home />
+{:else}
 <main>
   <TopBar {layersOpen} onToggleLayers={() => (layersOpen = !layersOpen)} onFit={fit} onExport={() => { editor.endTextEdit(); exportOpen = true; }} onSettings={() => (settingsOpen = true)} />
   <div class="stage">
@@ -107,6 +113,7 @@
   </div>
   <Toolbar onAddBoard={() => (presetsOpen = true)} onStickers={() => (stickersOpen = true)} />
 </main>
+{/if}
 
 {#if presetsOpen}<PresetSheet onPick={addBoard} onClose={() => (presetsOpen = false)} />{/if}
 {#if stickersOpen}<StickerSheet onClose={() => (stickersOpen = false)} />{/if}

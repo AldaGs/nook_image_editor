@@ -10,6 +10,7 @@
   import eyeOff from 'lucide-static/icons/eye-off.svg?raw';
   import frame from 'lucide-static/icons/frame.svg?raw';
   import group from 'lucide-static/icons/group.svg?raw';
+  import house from 'lucide-static/icons/house.svg?raw';
   import image from 'lucide-static/icons/image.svg?raw';
   import layers from 'lucide-static/icons/layers.svg?raw';
   import layoutTemplate from 'lucide-static/icons/layout-template.svg?raw';
@@ -45,7 +46,7 @@
   import x from 'lucide-static/icons/x.svg?raw';
 
   const ICONS = {
-    arrowDown, arrowUp, chevronDown, chevronRight, circle, eye, eyeOff, frame, group, image, layers,
+    arrowDown, arrowUp, chevronDown, chevronRight, circle, eye, eyeOff, frame, group, house, image, layers,
     layoutTemplate, listChecks, lock, lockOpen, maximize, minus, pipette, plus, pointer, redo, settings, share, sliders, smartphone, square, mask: maskIcon, flatten, combine, spline, penTool, check, pentagon, star, slash, sticker, bookmarkPlus, trash, type: type_,
     undo, ungroup, x,
   };

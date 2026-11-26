@@ -25,7 +25,7 @@ export function canEncodeWebp(): Promise<boolean> {
   return webp;
 }
 
-async function encode(px: { width: number; height: number; pixels: Uint8Array }, format: ImageFormat): Promise<Blob> {
+export async function encode(px: { width: number; height: number; pixels: Uint8Array }, format: ImageFormat): Promise<Blob> {
   const canvas = new OffscreenCanvas(px.width, px.height);
   const ctx = canvas.getContext('2d')!;
   // A view, not a copy: at 3x a board is tens of megabytes. CanvasKit hands back a plain ArrayBuffer.
