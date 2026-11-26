@@ -5,7 +5,7 @@
 import { Doc } from '../doc/document.ts';
 import { History } from '../doc/history.ts';
 import { keyBetween, keysAfter } from '../doc/fractional.ts';
-import { createNode } from '../doc/factory.ts';
+import { createNode, newId } from '../doc/factory.ts';
 import { contoursBounds, scalePath, shapePath, shiftPath, type Anchor, type VectorPath } from '../doc/shapes.ts';
 import { splitAt } from './tools/points.ts';
 import { starterDoc } from '../doc/serialize.ts';
@@ -486,6 +486,31 @@ export class Editor {
     this.transact('Add frame', () => [{ t: 'add', node: frame }]);
     this.select([frame.id]);
     return frame;
+  }
+
+  /**
+   * Copy a board and everything on it, placed to the right of the existing
+   * boards, and select the copy. One undo step.
+   */
+  duplicateBoard(id: string): Node | null {
+    const src = this.doc.get(id);
+    if (!src || src.type !== 'frame') return null;
+    const boards = this.doc.children(this.pageId).filter(n => n.type === 'frame');
+    const right = worldBounds(this.doc, boards)!;
+    const t = src.transform;
+    const at = worldBounds(this.doc, [src])!;
+    const transform: Affine = [t[0], t[1], t[2], t[3], t[4] + right.x + right.width + 120 - at.x, t[5] + right.y - at.y];
+    const copy: Node = { ...structuredClone(src), id: newId(), name: `${src.name} copy`, transform, parentId: src.parentId, order: this.orderAtTop(src.parentId ?? this.pageId) };
+    const ids = new Map([[src.id, copy.id]]);
+    const nodes = [copy, ...this.doc.descendants(src.id).map(d => {
+      const n: Node = { ...structuredClone(d), id: newId() };
+      ids.set(d.id, n.id);
+      return n;
+    })];
+    for (const n of nodes.slice(1)) n.parentId = ids.get(n.parentId!)!;
+    this.transact('Duplicate board', () => nodes.map(node => ({ t: 'add', node }) as Op));
+    this.select([copy.id]);
+    return copy;
   }
 
   /**
