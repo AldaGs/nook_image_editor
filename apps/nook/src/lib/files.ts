@@ -15,6 +15,12 @@ export async function shareFiles(files: File[]): Promise<'shared' | 'cancelled' 
       if (e instanceof DOMException && e.name === 'NotAllowedError') return 'retry';
     }
   }
+  downloadFiles(files);
+  return 'downloaded';
+}
+
+/** Save files straight to the device's downloads, skipping the share sheet. */
+export function downloadFiles(files: File[]): void {
   for (const [i, file] of files.entries()) {
     const url = URL.createObjectURL(file);
     // Browsers drop rapid back-to-back downloads; space them out a little.
@@ -23,7 +29,6 @@ export async function shareFiles(files: File[]): Promise<'shared' | 'cancelled' 
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }, i * 250);
   }
-  return 'downloaded';
 }
 
 export async function shareOrDownload(name: string, text: string, type: string): Promise<void> {
