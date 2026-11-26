@@ -1,4 +1,4 @@
-<!-- Export: boards as PNG/JPG/WebP at 1x–4x through the share sheet (a carousel
+<!-- Export: boards as PNG/JPG/WebP at 1x–4x saved to the device or through the share sheet (a carousel
      when several are picked, in board order), or the board set as a PBC scene. -->
 <script lang="ts">
   import { confirmAction } from '../lib/confirm.svelte';
@@ -6,7 +6,7 @@
   import type { Engine, Node } from '@nook/engine';
   import Sheet from './Sheet.svelte';
   import { boardFiles, boardSvgs, canEncodeWebp, fitsLimit, type ImageFormat } from '../lib/export';
-  import { shareFiles } from '../lib/files';
+  import { downloadFiles, shareFiles } from '../lib/files';
   import { openNook, saveNook } from '../lib/nookfile';
   import { loadAsset, putAsset } from '../lib/assets';
   import { editor, openDocument } from '../lib/session.svelte';
@@ -46,13 +46,15 @@
     if (r === 'shared' || r === 'downloaded') onClose();
   }
 
-  async function exportImages() {
-    if (ready) return share(ready);
+  async function exportImages(mode: 'save' | 'share') {
+    if (ready && mode === 'share') return share(ready);
     if (!engine || !picked.length) return;
     busy = true;
     message = null;
     try {
-      await share(await boardFiles(engine, picked, scale, format));
+      const files = ready ?? await boardFiles(engine, picked, scale, format);
+      if (mode === 'save') { downloadFiles(files); ready = null; onClose(); }
+      else await share(files);
     } catch (e) {
       message = e instanceof Error ? e.message : String(e);
     } finally {
@@ -140,8 +142,11 @@
 
   <section>
     {#if message}<p class="message">{message}</p>{/if}
-    <button type="button" class="primary" disabled={!count || busy || !engine} onclick={exportImages}>
-      {busy ? 'Preparing…' : ready ? 'Share' : count > 1 ? `Share ${count} images` : count ? 'Share image' : 'Pick a board'}
+    <button type="button" class="primary" disabled={!count || busy || !engine} onclick={() => exportImages('save')}>
+      {busy ? 'Preparing…' : count > 1 ? `Save ${count} images` : count ? 'Save image' : 'Pick a board'}
+    </button>
+    <button type="button" class="secondary" disabled={!count || busy || !engine} onclick={() => exportImages('share')}>
+      {ready ? 'Share' : 'Share…'}
     </button>
     <button type="button" class="secondary" disabled={!count || busy || !engine} onclick={exportSvgs}>SVG (vector)</button>
     <button type="button" class="secondary" onclick={onExportPbc}>PBC scene (.pbc)</button>
