@@ -4,6 +4,7 @@
 import { Editor, fromFile, starterDoc, blankDoc, toFile, type Doc, type Engine, type EditorState, type RGBA } from '@nook/engine';
 import { readFile, removeEntry, writeFile } from '@nook/storage';
 import { encode } from './export';
+import { forgetProject, scheduleSync, sync } from './drive.svelte';
 
 // Each project lives in docs/<id>/doc.json; projects.json lists them for the home screen.
 const INDEX_PATH = 'projects.json';
@@ -60,7 +61,7 @@ async function save(): Promise<void> {
   }
 }
 
-const saveIndex = () => writeFile(INDEX_PATH, JSON.stringify(ui.projects));
+const saveIndex = async () => { await writeFile(INDEX_PATH, JSON.stringify(ui.projects)); scheduleSync(); };
 
 /** Read the project list. A device from before projects keeps its one document as the first project. */
 export async function loadSession(): Promise<void> {
@@ -75,6 +76,7 @@ export async function loadSession(): Promise<void> {
     ui.error = `Couldn't read your projects: ${e instanceof Error ? e.message : e}`;
   }
   ui.loaded = true;
+  sync();
 }
 
 export async function openProject(id: string): Promise<void> {
@@ -107,6 +109,7 @@ export async function closeProject(): Promise<void> {
   if (!ui.saved) await save();
   await saveThumb(ui.projectId);
   ui.projectId = null;
+  scheduleSync();
 }
 
 /** A small picture of the first board for the home screen. Best effort: no thumb is fine. */
@@ -127,7 +130,9 @@ export async function renameProject(id: string, name: string): Promise<void> {
   await saveIndex();
 }
 
-export async function deleteProject(id: string): Promise<void> {
+/** `everywhere`: also remove it from Google Drive, so other devices drop it. */
+export async function deleteProject(id: string, everywhere = false): Promise<void> {
+  await forgetProject(id, everywhere);
   ui.projects = ui.projects.filter(p => p.id !== id);
   await saveIndex();
   try { await removeEntry(`docs/${id}`); } catch { /* already gone */ }

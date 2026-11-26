@@ -8,6 +8,7 @@
   } from '@nook/ai';
   import Sheet from './Sheet.svelte';
   import { editor, setSafeZoneOpacity } from '../lib/session.svelte';
+  import { clearDrive, connectDrive, disconnectDrive, drive, sync } from '../lib/drive.svelte';
 
   let { onClose }: { onClose: () => void } = $props();
 
@@ -30,6 +31,9 @@
 
   function toggle(v: boolean) { setAiEnabled(v); on = v; }
   function pick(id: ModelId) { setBackgroundModel(id); model = id; }
+  function clearSync() {
+    if (confirm("Delete everything Nook has saved in your Google Drive and stop syncing here? Projects on your devices stay.")) clearDrive();
+  }
   async function remove(path?: string) { await removeAiData(path); await refresh(); }
 </script>
 
@@ -44,6 +48,23 @@
       <span class="muted pct">{Math.round(safeOpacity * 100)}%</span>
     </div>
   </section>
+
+  {#if drive.available}
+    <section>
+      <h3>Google Drive sync</h3>
+      {#if drive.connected}
+        <div class="row">
+          <span class="name">{drive.syncing ? 'Syncing…' : drive.error ? `Sync: ${drive.error}` : 'On. Projects sync across your devices.'}</span>
+          <button type="button" class="link" onclick={sync}>Sync now</button>
+          <button type="button" class="link" onclick={disconnectDrive}>Turn off</button>
+        </div>
+      {:else}
+        <small>Keeps your projects in a private Nook folder in your Google Drive, so they show up on all your devices.</small>
+        <button type="button" class="secondary" onclick={connectDrive}>Sync with Google Drive</button>
+      {/if}
+      <button type="button" class="secondary" onclick={clearSync}>Clear Nook data from Google Drive</button>
+    </section>
+  {/if}
 
   <section>
     <h3>AI</h3>

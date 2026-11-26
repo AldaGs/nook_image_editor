@@ -3,6 +3,7 @@
   import IconButton from './IconButton.svelte';
   import Icon from './Icon.svelte';
   import { readFile } from '@nook/storage';
+  import { connectDrive, drive, reconnectDrive } from '../lib/drive.svelte';
   import { deleteProject, newProject, openProject, renameProject, thumbPath, ui } from '../lib/session.svelte';
 
   // Thumbnail object URLs by project id, freed when the home screen closes.
@@ -24,7 +25,11 @@
   const when = (t: number) => new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
   function remove(id: string, name: string) {
-    if (confirm(`Delete "${name}"? This can't be undone.`)) deleteProject(id);
+    if (!confirm(`Delete "${name}" from this device? This can't be undone.`)) return;
+    const everywhere = drive.connected && confirm(`Also remove "${name}" from Google Drive and your other devices?
+
+OK: remove everywhere. Cancel: keep it there, just stop syncing it here.`);
+    deleteProject(id, everywhere);
   }
 </script>
 
@@ -33,6 +38,20 @@
     <h1>Projects</h1>
     <button type="button" class="new" onclick={newProject}><Icon name="plus" /> New project</button>
   </header>
+
+  {#if drive.available}
+    <p class="sync">
+      {#if !drive.connected}
+        <button type="button" class="link" onclick={connectDrive}>Sync with Google Drive</button>
+      {:else if drive.syncing}
+        Syncing with Google Drive…
+      {:else if drive.error}
+        Sync: {drive.error}. <button type="button" class="link" onclick={reconnectDrive}>Sign in again</button>
+      {:else}
+        Synced with Google Drive{drive.lastSync ? ` at ${new Date(drive.lastSync).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : ''}
+      {/if}
+    </p>
+  {/if}
 
   {#if !ui.loaded}
     <p class="empty">Loading…</p>
@@ -69,5 +88,7 @@
   .info input { width: 100%; font-weight: 600; background: transparent; border-color: transparent; }
   .info input:focus { border-color: var(--border); background: var(--bg); }
   .date { color: var(--text-muted); font-size: 12px; padding-left: 9px; }
+  .sync { margin: calc(var(--space) * -1) 0 var(--space); color: var(--text-muted); font-size: 13px; }
+  .link { background: none; border: none; padding: 0; color: var(--text); text-decoration: underline; cursor: pointer; font: inherit; }
   .empty { color: var(--text-muted); text-align: center; margin-top: 20vh; }
 </style>

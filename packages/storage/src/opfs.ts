@@ -33,3 +33,17 @@ export async function removeEntry(path: string): Promise<void> {
   const { dir, name } = await dirFor(path, false);
   await dir.removeEntry(name, { recursive: true });
 }
+
+/** Names of the files directly inside a folder; empty when the folder doesn't exist. */
+export async function listDir(path: string): Promise<string[]> {
+  let dir = await navigator.storage.getDirectory();
+  try {
+    for (const p of path.split('/').filter(Boolean)) dir = await dir.getDirectoryHandle(p);
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'NotFoundError') return [];
+    throw e;
+  }
+  const names: string[] = [];
+  for await (const [name, h] of (dir as unknown as AsyncIterable<[string, FileSystemHandle]>)) if (h.kind === 'file') names.push(name);
+  return names;
+}
