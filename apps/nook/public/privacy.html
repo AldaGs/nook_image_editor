@@ -78,7 +78,7 @@
     <h3>3.3 Storage and sharing</h3>
     <ul>
       <li><strong>Storage:</strong> synced files live only in <em>your</em> Google Drive’s hidden app folder. We keep no copy.</li>
-      <li><strong>Tokens:</strong> sign-in uses Google Identity Services. The access token is kept only in your browser’s memory, is never sent to a server we control, and is discarded when you close the app. We do not request a refresh token.</li>
+      <li><strong>Tokens:</strong> sign-in uses Google Identity Services. The short-lived access token (valid for about one hour) is kept only in your browser’s local storage on your device so the app stays signed in across reloads; it is never sent to a server we control, expires on its own, and is deleted when you turn sync off. We do not request or receive a refresh token.</li>
       <li><strong>Sharing:</strong> we do <strong>not</strong> transfer, sell, share or disclose Google user data to any third party.</li>
     </ul>
 

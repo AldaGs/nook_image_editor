@@ -45,7 +45,14 @@ declare const google: { accounts: { oauth2: {
   revoke(token: string, done?: () => void): void;
 } } };
 
-let token: { value: string; expires: number } | null = null;
+// The token is kept until it expires (about an hour) so reloads and quick reopens skip sign-in.
+const TOKEN_KEY = 'nook.drive.token';
+type Token = { value: string; expires: number };
+let token: Token | null = (() => { try { return JSON.parse(localStorage.getItem(TOKEN_KEY) ?? 'null') as Token | null; } catch { return null; } })();
+function setToken(t: Token | null): void {
+  token = t;
+  try { if (t) localStorage.setItem(TOKEN_KEY, JSON.stringify(t)); else localStorage.removeItem(TOKEN_KEY); } catch { /* no storage */ }
+}
 let gis: Promise<void> | null = null;
 
 function loadGis(): Promise<void> {
@@ -68,7 +75,7 @@ async function getToken(interactive: boolean): Promise<string> {
       scope: SCOPE,
       callback: r => {
         if (!r.access_token) return reject(new Error(r.error ?? 'sign-in failed'));
-        token = { value: r.access_token, expires: Date.now() + (r.expires_in ?? 3600) * 1000 };
+        setToken({ value: r.access_token, expires: Date.now() + (r.expires_in ?? 3600) * 1000 });
         resolve(r.access_token);
       },
       error_callback: e => reject(new Error(e.type === 'popup_closed' ? 'sign-in was closed' : 'sign-in needed')),
@@ -82,7 +89,7 @@ async function getToken(interactive: boolean): Promise<string> {
 async function call(url: string, init: RequestInit = {}): Promise<Response> {
   const t = await getToken(false);
   const res = await fetch(url, { ...init, headers: { ...init.headers, Authorization: `Bearer ${t}` } });
-  if (res.status === 401) token = null;
+  if (res.status === 401) setToken(null);
   if (!res.ok && res.status !== 404) throw new Error(`Google Drive said ${res.status}`);
   return res;
 }
@@ -145,6 +152,7 @@ export function sync(): Promise<void> {
       drive.lastSync = Date.now();
     } catch (e) {
       drive.error = e instanceof Error ? e.message : String(e);
+      if (drive.error === 'sign-in needed') signInOnNextTap();
     } finally {
       drive.syncing = false;
       running = null;
@@ -200,6 +208,14 @@ async function pass(): Promise<void> {
   if (!same(forDrive, remoteIndex)) await upload(remote, INDEX, json(forDrive));
 }
 
+/**
+ * Google popups need a tap to open. When the silent sign-in fails, the next tap anywhere
+ * reopens it; with access already granted it closes on its own after a moment.
+ */
+function signInOnNextTap(): void {
+  document.addEventListener('pointerdown', () => { if (drive.connected && !(token && token.expires > Date.now() + 60_000)) connectDrive(); }, { once: true, capture: true });
+}
+
 let timer: ReturnType<typeof setTimeout> | undefined;
 /** Sync a little after the last save, so typing doesn't upload every keystroke. */
 export function scheduleSync(): void {
@@ -226,14 +242,14 @@ export async function connectDrive(): Promise<void> {
 
 /** Sign in again after Google needs it (call from a tap). */
 export async function reconnectDrive(): Promise<void> {
-  token = null;
+  setToken(null);
   await connectDrive();
 }
 
 /** Stop syncing on this device. Drive keeps its copy. */
 export function disconnectDrive(): void {
   if (token) google.accounts.oauth2.revoke(token.value);
-  token = null;
+  setToken(null);
   prefs.connected = drive.connected = false;
   storePrefs();
 }
