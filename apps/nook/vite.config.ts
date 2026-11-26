@@ -3,6 +3,8 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  // /home is a plain page about the app (Google's sign-in branding links to it).
+  build: { rollupOptions: { input: { main: 'index.html', home: 'home/index.html' } } },
   plugins: [
     svelte(),
     VitePWA({
@@ -24,6 +26,8 @@ export default defineConfig({
         // AI stays off the install: the ONNX runtime and models download only when AI is used.
         globIgnores: ['**/ort*.{wasm,mjs}', '**/ort.*.mjs', 'models/**'],
         maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
+        // The home, privacy and terms pages are their own pages, not the app.
+        navigateFallbackDenylist: [/^\/home/, /^\/privacy/, /^\/terms/],
       },
     }),
   ],
