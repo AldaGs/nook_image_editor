@@ -1,5 +1,7 @@
 // Model loading, ported from Heirloom. `loadModel` is the only way to get a model:
-// it refuses while AI is off and only fetches from this app's own origin.
+// it refuses while AI is off and only fetches from this app's own origin or
+// Hugging Face (big BiRefNet files, kept out of every deploy), and a file from
+// Hugging Face must match its pinned sha256 before it is used or cached.
 
 import { aiEnabled, AiDisabledError, onAiCleared } from './switch.ts';
 
@@ -7,7 +9,8 @@ import { aiEnabled, AiDisabledError, onAiCleared } from './switch.ts';
 export const AI_CACHE = 'nook-ai';
 
 /**
- * Same-origin model files, fetched into public/models by `pnpm fetch-models`.
+ * IS-Net is same-origin, fetched into public/models by `pnpm fetch-models`
+ * (no Hugging Face copy of that exact file); BiRefNet loads from Hugging Face.
  * The user picks one in Settings. IS-Net runs anywhere; BiRefNet needs a GPU
  * with enough room and falls back to IS-Net where it can't run.
  */
@@ -21,7 +24,7 @@ export const MODELS = {
     sha256: '60920e99c45464f2ba57bee2ad08c919a52bbf852739e96947fbb4358c0d964a',
   },
   birefnetLite: {
-    file: 'models/birefnet_lite_fp16.onnx',
+    file: 'https://huggingface.co/onnx-community/BiRefNet_lite-ONNX/resolve/main/onnx/model_fp16.onnx',
     name: 'BiRefNet lite',
     about: 'Sharper edges; needs a strong GPU (uses IS-Net where it can\u2019t run)',
     mb: 115,
@@ -29,7 +32,7 @@ export const MODELS = {
     sha256: 'd39b897ceb16ae654c1731f3dba0cf9b368d9cae74b5a57459b455cc8bfec402',
   },
   birefnet: {
-    file: 'models/birefnet_fp16.onnx',
+    file: 'https://huggingface.co/onnx-community/BiRefNet-ONNX/resolve/main/onnx/model_fp16.onnx',
     name: 'BiRefNet',
     about: 'Cleanest edges (hair, fur); computers with a strong GPU (uses IS-Net where it can\u2019t run)',
     mb: 490,
@@ -44,8 +47,8 @@ onAiCleared(() => inMemory.clear());
 
 export function loadModel(path: string): Promise<ArrayBuffer> {
   if (!aiEnabled()) return Promise.reject(new AiDisabledError());
-  if (/^[a-z]+:/i.test(path) && new URL(path).origin !== location.origin) {
-    return Promise.reject(new Error('AI models must be served from this app (on-device only)'));
+  if (/^[a-z]+:/i.test(path) && ![location.origin, HF].includes(new URL(path).origin)) {
+    return Promise.reject(new Error('AI models must come from this app or Hugging Face'));
   }
   if (!inMemory.has(path)) {
     inMemory.set(path, fetchCached(path).catch(e => { inMemory.delete(path); throw e; }));
@@ -59,8 +62,17 @@ async function fetchCached(path: string): Promise<ArrayBuffer> {
   if (hit) return hit.arrayBuffer();
   const res = await fetch(path);
   if (!res.ok) throw new Error(res.status === 404 ? 'this model isn’t on this server (run pnpm fetch-models)' : `model ${path}: ${res.status}`);
-  await cache?.put(path, res.clone()).catch(() => { /* over quota: still works, just not cached */ });
-  return res.arrayBuffer();
+  const bytes = await res.arrayBuffer();
+  const pinned = Object.values(MODELS).find(m => m.file === path)?.sha256;
+  if (path.startsWith(HF) && (!pinned || (await sha256(bytes)) !== pinned)) throw new Error(`model ${path}: checksum mismatch`);
+  await cache?.put(path, new Response(bytes, { headers: { 'content-length': String(bytes.byteLength) } })).catch(() => { /* over quota: still works, just not cached */ });
+  return bytes;
+}
+
+const HF = 'https://huggingface.co';
+
+async function sha256(b: ArrayBuffer): Promise<string> {
+  return [...new Uint8Array(await crypto.subtle.digest('SHA-256', b))].map(x => x.toString(16).padStart(2, '0')).join('');
 }
 
 /** Is this model file on this server? (HEAD only; an SPA fallback page doesn't count.) */
@@ -77,7 +89,8 @@ export async function storedAiData(): Promise<{ path: string; bytes: number }[]>
   for (const req of await cache.keys()) {
     const r = await cache.match(req);
     const bytes = +(r?.headers.get('content-length') ?? 0) || (r ? (await r.blob()).size : 0);
-    out.push({ path: new URL(req.url).pathname, bytes });
+    const u = new URL(req.url);
+    out.push({ path: u.origin === location.origin ? u.pathname : req.url, bytes });
   }
   return out;
 }

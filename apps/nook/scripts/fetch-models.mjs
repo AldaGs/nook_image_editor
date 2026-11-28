@@ -1,7 +1,7 @@
 // Download AI model files into public/models so Nook serves them itself (AI runs
 // on the device; nothing is fetched from a third party at runtime).
-// Run: pnpm fetch-models            (all three)
-//      pnpm fetch-models isnet      (just the one that runs everywhere)
+// Run: pnpm fetch-models. Only IS-Net: BiRefNet loads from Hugging Face at runtime
+// (packages/ai/src/models.ts) so its 605 MB isn't copied into every deploy.
 // Models are not committed (public/models is gitignored). A missing model never
 // fails a build: Settings shows it as "not on this server". --strict makes it an error.
 import { createHash } from 'node:crypto';
@@ -15,20 +15,6 @@ const MODELS = [
     url: 'https://github.com/danielgatis/rembg/releases/download/v0.0.0/isnet-general-use.onnx',
     sha256: '60920e99c45464f2ba57bee2ad08c919a52bbf852739e96947fbb4358c0d964a',
     license: 'https://raw.githubusercontent.com/xuebinqin/DIS/main/LICENSE.md',
-  },
-  {
-    id: 'lite',
-    file: 'birefnet_lite_fp16.onnx',
-    url: 'https://huggingface.co/onnx-community/BiRefNet_lite-ONNX/resolve/main/onnx/model_fp16.onnx',
-    sha256: 'd39b897ceb16ae654c1731f3dba0cf9b368d9cae74b5a57459b455cc8bfec402',
-    license: 'https://raw.githubusercontent.com/ZhengPeng7/BiRefNet/main/LICENSE',
-  },
-  {
-    id: 'full',
-    file: 'birefnet_fp16.onnx',
-    url: 'https://huggingface.co/onnx-community/BiRefNet-ONNX/resolve/main/onnx/model_fp16.onnx',
-    sha256: '3654c741eb80bd926ada8fed1713b506ccf8d30eb1f6487e87eb9f234f33df09',
-    license: 'https://raw.githubusercontent.com/ZhengPeng7/BiRefNet/main/LICENSE',
   },
 ];
 
